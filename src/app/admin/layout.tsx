@@ -1,9 +1,8 @@
 
-'use client'; // Must be a client component to use hooks and check localStorage
+'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { getUserProfile, type UserProfile } from '@/services/userProfile'; // Client-side version
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Home, Loader2 } from 'lucide-react';
@@ -13,32 +12,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-
-// No longer using 'export const dynamic = 'force-dynamic';' as it's client-side logic now
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AdminLayout({
-  children,
-}: {
+                                      children,
+                                    }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = React.useState<boolean | null>(null); // null for loading state
-  const [userEmail, setUserEmail] = React.useState<string | null>(null);
+  const { user, isLoading } = useAuth();
 
   React.useEffect(() => {
-    const user = getUserProfile(); // Reads from localStorage
-    if (user && user.is_admin) {
-      setIsAdmin(true);
-      setUserEmail(user.email);
-    } else {
-      setIsAdmin(false); // User is not admin or not logged in
-      setUserEmail(user ? user.email : null);
-      router.push('/'); // Redirect to home if not admin
-    }
-  }, [router]);
+    if (isLoading) return;
 
-  if (isAdmin === null) {
-    // Loading state while checking admin status
+    if (!user || !user.is_admin) {
+      router.replace('/');
+    }
+  }, [user, isLoading, router]);
+
+
+  if (isLoading) {
     return (
       <div className="container mx-auto flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center px-4 py-12">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -47,9 +40,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!isAdmin) {
-    // This UI might briefly show before redirect, or if redirect fails.
-    // The primary protection is the router.push('/') in useEffect.
+  if (!user?.is_admin) {
     return (
       <div className="container mx-auto flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center px-4 py-12">
         <Card className="w-full max-w-md text-center">
@@ -75,8 +66,5 @@ export default function AdminLayout({
     );
   }
 
-  // console.log(
-  //   `[AdminLayout] Access Granted for admin user: ${userEmail}`
-  // );
   return <div className="w-full">{children}</div>;
 }

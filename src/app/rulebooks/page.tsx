@@ -12,9 +12,9 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import {
   Loader2,
@@ -23,47 +23,73 @@ import {
   ChevronRight,
   FileQuestion,
   BookOpen,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Use a more reliable CDN for the worker, pointing to the module version (.mjs)
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export default function RulebookViewerPage() {
   const searchParams = useSearchParams();
-  const pdfUrl = searchParams.get('pdfUrl');
+  const pdfUrlParam = searchParams.get('pdfUrl');
   const pdfNameParam = searchParams.get('pdfName');
 
-  const pdfName = pdfNameParam || 'Documento PDF';
+  const pdfUrl = pdfUrlParam ? decodeURIComponent(pdfUrlParam) : null;
+  const pdfName = pdfNameParam
+    ? decodeURIComponent(pdfNameParam)
+    : 'Documento PDF';
 
   const [numPages, setNumPages] = React.useState<number | null>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
   const [isLoadingPdf, setIsLoadingPdf] = React.useState(true);
   const [pdfError, setPdfError] = React.useState<string | null>(null);
-  const [viewerWidth, setViewerWidth] = React.useState<number>(800); 
+  const [viewerWidth, setViewerWidth] = React.useState<number>(800);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
 
+  // Memoize the options object to prevent unnecessary re-renders
+  const pdfOptions = React.useMemo(
+    () => ({
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+    }),
+    []
+  );
+
+  // Reset state when the PDF URL changes
   React.useEffect(() => {
-     document.title = `Livro de Regras: ${pdfNameParam || 'Documento'} - TableSheet`;
+    setNumPages(null);
+    setCurrentPage(1);
+    setIsLoadingPdf(true);
+    setPdfError(null);
+  }, [pdfUrl]);
+
+  React.useEffect(() => {
+    document.title = `Livro de Regras: ${
+      pdfNameParam || 'Documento'
+    } - TableSheet`;
   }, [pdfNameParam]);
 
   React.useEffect(() => {
     function handleResize() {
       if (containerRef.current) {
-        setViewerWidth(
-          Math.max(0, containerRef.current.offsetWidth - 40) 
-        );
+        setViewerWidth(Math.max(0, containerRef.current.offsetWidth - 40));
       }
     }
-    handleResize(); 
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []); 
+  }, []);
 
-
-  function onDocumentLoadSuccess({ numPages: nextNumPages }: { numPages: number }) {
+  function onDocumentLoadSuccess({
+                                   numPages: nextNumPages,
+                                 }: {
+    numPages: number;
+  }) {
     setNumPages(nextNumPages);
-    setCurrentPage(1); 
+    setCurrentPage(1);
     setIsLoadingPdf(false);
     setPdfError(null);
   }
@@ -71,7 +97,7 @@ export default function RulebookViewerPage() {
   function onDocumentLoadError(loadError: Error) {
     console.error('Failed to load PDF:', loadError);
     setPdfError(
-      `Falha ao carregar PDF: ${loadError.message}. Por favor, verifique se a URL está correta e acessível.`
+      `Falha ao carregar PDF: ${loadError.message}. Por favor, verifique se a URL está correta e tente recarregar a página.`
     );
     setIsLoadingPdf(false);
   }
@@ -94,7 +120,8 @@ export default function RulebookViewerPage() {
             </div>
             <CardTitle>Nenhum PDF Selecionado</CardTitle>
             <CardDescription>
-              Por favor, selecione um documento PDF na página de detalhes de um jogo para visualizá-lo aqui.
+              Por favor, selecione um documento PDF na página de detalhes de um
+              jogo para visualizá-lo aqui.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -117,13 +144,13 @@ export default function RulebookViewerPage() {
           <BookOpen className="align-text-bottom mr-2 inline-block h-6 w-6" />
           {pdfName}
         </h1>
-        {numPages && (
+        {numPages && !isLoadingPdf && !pdfError && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
               onClick={goToPrevPage}
-              disabled={currentPage <= 1 || isLoadingPdf}
+              disabled={currentPage <= 1}
               aria-label="Página Anterior"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -135,7 +162,7 @@ export default function RulebookViewerPage() {
               variant="outline"
               size="icon"
               onClick={goToNextPage}
-              disabled={currentPage >= (numPages || 0) || isLoadingPdf}
+              disabled={currentPage >= (numPages || 0)}
               aria-label="Próxima Página"
             >
               <ChevronRight className="h-4 w-4" />
@@ -144,65 +171,69 @@ export default function RulebookViewerPage() {
         )}
       </div>
 
-      {isLoadingPdf && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground">
-            Carregando documento PDF...
-          </p>
-        </div>
-      )}
-
-      {pdfError && !isLoadingPdf && (
-        <Card className="w-full border-destructive bg-destructive/10 text-center">
-          <CardHeader>
-            <div className="mx-auto mb-4 w-fit rounded-full bg-destructive/20 p-3">
-              <AlertTriangle className="h-12 w-12 text-destructive" />
+      <div className="pdf-document-container overflow-x-auto rounded-lg bg-muted p-2 shadow-inner sm:p-4">
+        <Document
+          file={pdfUrl}
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={onDocumentLoadError}
+          loading={
+            <div className="flex min-h-[50vh] flex-col items-center justify-center py-12 text-center">
+              <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
+              <p className="text-lg text-muted-foreground">
+                Carregando documento PDF...
+              </p>
             </div>
-            <CardTitle className="text-destructive">Erro ao Carregar PDF</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive-foreground">{pdfError}</p>
-            <Button variant="link" asChild className="mt-4">
-              <Link href="/games">Tentar outro documento</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoadingPdf && !pdfError && pdfUrl && (
-        <div className="pdf-document-container overflow-x-auto rounded-lg bg-muted p-2 shadow-inner sm:p-4">
-          <Document
-            file={pdfUrl}
-            onLoadSuccess={onDocumentLoadSuccess}
-            onLoadError={onDocumentLoadError}
-            loading="" 
-            error="" 
-            options={{
-              cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-              cMapPacked: true,
-              standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-            }}
-          >
+          }
+          error={
+            <Card className="w-full border-destructive bg-destructive/10 text-center">
+              <CardHeader>
+                <div className="mx-auto mb-4 w-fit rounded-full bg-destructive/20 p-3">
+                  <AlertTriangle className="h-12 w-12 text-destructive" />
+                </div>
+                <CardTitle className="text-destructive">
+                  Erro ao Carregar PDF
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-destructive-foreground">{pdfError}</p>
+              </CardContent>
+              <CardFooter className="flex flex-col justify-center gap-2 sm:flex-row">
+                <Button onClick={() => window.location.reload()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Recarregar Página
+                </Button>
+                <Button variant="link" asChild className="mx-auto">
+                  <Link href="/games">Tentar outro documento</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          }
+          options={pdfOptions}
+        >
+          {!pdfError && numPages && (
             <Page
+              key={currentPage} // Add key to force re-render on page change
               pageNumber={currentPage}
               width={
                 containerRef.current
                   ? Math.min(
-                      containerRef.current.offsetWidth -
-                        (containerRef.current.offsetWidth > 600 ? 40 : 10),
-                      1200
-                    )
+                    containerRef.current.offsetWidth -
+                    (containerRef.current.offsetWidth > 600 ? 40 : 10),
+                    1200
+                  )
                   : viewerWidth
               }
               renderAnnotationLayer={true}
               renderTextLayer={true}
-              loading=""
-              error=""
+              loading={
+                <div className="flex min-h-[50vh] flex-col items-center justify-center py-12 text-center">
+                  <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
+                </div>
+              }
             />
-          </Document>
-        </div>
-      )}
+          )}
+        </Document>
+      </div>
 
       {numPages && !isLoadingPdf && !pdfError && (
         <CardFooter className="mt-6 flex flex-col items-center justify-center gap-4 border-t pt-6 sm:flex-row">
@@ -234,3 +265,4 @@ export default function RulebookViewerPage() {
     </div>
   );
 }
+

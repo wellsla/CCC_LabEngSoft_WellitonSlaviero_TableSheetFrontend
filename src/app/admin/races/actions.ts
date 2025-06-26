@@ -1,19 +1,15 @@
-
 'use server';
 
-import { deleteGameRace as deleteGameRaceService } from '@/services/race';
+import { deleteGameRace } from '@/services/race';
+import { revalidatePath } from 'next/cache';
 
 export async function deleteGameRaceAction(
-  raceId: string
+  raceId: string,
+  token: string | null
 ): Promise<{ success: boolean; rawMessage?: string }> {
-  try {
-    const result = await deleteGameRaceService(raceId);
-    return result; 
-  } catch (error: any) {
-    console.error('Error in deleteGameRaceAction:', error);
-    return {
-      success: false,
-      rawMessage: error.message || 'Ocorreu um erro inesperado ao excluir a raça.',
-    };
+  const result = await deleteGameRace(raceId, token);
+  if (result.success) {
+    revalidatePath('/admin/races');
   }
+  return result;
 }

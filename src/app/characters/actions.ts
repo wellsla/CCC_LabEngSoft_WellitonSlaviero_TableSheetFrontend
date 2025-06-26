@@ -1,22 +1,16 @@
-
 'use server';
 
-import { deleteCharacter as deleteCharacterService } from '@/services/character';
+import { deleteCharacter } from '@/services/character';
+import { revalidatePath } from 'next/cache';
 
 export async function deleteCharacterAction(
-  characterId: string
+  characterId: string,
+  token: string | null
 ): Promise<{ success: boolean; rawMessage?: string }> {
-  try {
-    const result = await deleteCharacterService(characterId); 
-    if (result.success) {
-      return { success: true, rawMessage: result.rawMessage };
-    }
-    return { success: false, rawMessage: result.rawMessage };
-  } catch (error: any) {
-    console.error('Error in deleteCharacterAction:', error);
-    return {
-      success: false,
-      rawMessage: error.message || 'Ocorreu um erro inesperado ao excluir o personagem.',
-    };
+  const result = await deleteCharacter(characterId, token);
+  if (result.success) {
+    revalidatePath('/characters');
+    revalidatePath(`/characters/${characterId}`);
   }
+  return result;
 }

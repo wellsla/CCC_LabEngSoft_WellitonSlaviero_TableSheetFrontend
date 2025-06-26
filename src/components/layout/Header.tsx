@@ -1,9 +1,10 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import mainLogo from '../../../public/images/LogoSemFundo.png';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -17,17 +18,12 @@ import {
   UserCog,
   Info,
   Loader2,
-  BookCopy, // For Classes
-  Palette, // For Races (example, can be changed)
-  FileText, // For Books/PDFs
+  BookCopy,
+  Palette,
+  FileText,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  getUserProfile,
-  type UserProfile,
-  verifyAndFetchUserProfile,
-} from '@/services/userProfile';
-import { logoutAction } from '@/app/auth/actions';
+import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import {
   DropdownMenu,
@@ -39,31 +35,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const Header = () => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const { user, logout, isLoading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      setIsLoadingUser(true);
-      // This now uses the mock-aware getUserProfile
-      const user = await verifyAndFetchUserProfile();
-      setCurrentUser(user);
-      setIsLoadingUser(false);
-    };
-    fetchUser();
-  }, []);
+  const isLoggedIn = !!user;
+  const isAdmin = user?.is_admin === true;
 
-  const isLoggedIn = !!currentUser;
-  const isAdmin = currentUser?.is_admin === true;
-
-  const handleLogout = async () => {
-    // MOCK AUTH: Clear mock session from localStorage
-    localStorage.removeItem('mockUserType');
-    localStorage.removeItem('sessionUserData');
-    setCurrentUser(null);
-    await logoutAction(); // Redirects
-    setIsMobileMenuOpen(false);
+  const handleLogout = () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    logout();
   };
 
   const handleLinkClick = () => {
@@ -135,11 +117,9 @@ const Header = () => {
           onClick={handleLinkClick}
         >
           <Image
-            src="https://placehold.co/64x64.png"
-            width={28}
-            height={28}
+            src={mainLogo}
             alt="TableSheet Logo"
-            className="h-7 w-7 object-contain"
+            className="h-16 w-16 object-contain"
             data-ai-hint="logo placeholder"
           />
           <span className="text-xl font-semibold tracking-tight text-primary">
@@ -165,9 +145,9 @@ const Header = () => {
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <div className="hidden items-center gap-2 sm:gap-3 md:flex">
             <ThemeToggleButton />
-            {isLoadingUser ? (
+            {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            ) : isLoggedIn && currentUser ? (
+            ) : isLoggedIn && user ? (
               <>
                 {isAdmin && (
                   <DropdownMenu>
@@ -202,13 +182,13 @@ const Header = () => {
                 <Link href="/profile" aria-label="Ver Perfil">
                   <Avatar className="h-9 w-9 cursor-pointer rounded-full ring-1 ring-primary/30 ring-offset-2 ring-offset-background transition-all duration-300 hover:ring-primary/70">
                     <AvatarImage
-                      src={currentUser.avatar_url ?? undefined}
-                      alt={currentUser.name ?? 'Avatar do Usuário'}
-                      data-ai-hint={currentUser.dataAiHint || 'user avatar'}
+                      src={user.avatar_url ?? undefined}
+                      alt={user.name ?? 'Avatar do Usuário'}
+                      data-ai-hint={user.dataAiHint || 'user avatar'}
                     />
                     <AvatarFallback>
-                      {currentUser.name ? (
-                        currentUser.name.substring(0, 2).toUpperCase()
+                      {user.name ? (
+                        user.name.substring(0, 2).toUpperCase()
                       ) : (
                         <UserCircle className="h-5 w-5" />
                       )}
@@ -219,10 +199,17 @@ const Header = () => {
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
-                  className="flex items-center text-foreground/80 hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isLoggingOut}
+                  className="flex w-[80px] items-center text-foreground/80 hover:bg-destructive/10 hover:text-destructive"
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sair
+                  {isLoggingOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sair
+                    </>
+                  )}
                 </Button>
               </>
             ) : (
@@ -272,11 +259,11 @@ const Header = () => {
               </div>
 
               <nav className="flex-grow space-y-1 p-4 text-base font-medium">
-                {isLoadingUser ? (
+                {isLoading ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
-                ) : isLoggedIn && currentUser ? (
+                ) : isLoggedIn && user ? (
                   <Link
                     href="/profile"
                     className="mb-3 flex items-center gap-3 rounded-lg border-b p-3 text-muted-foreground transition-all hover:bg-accent/10 hover:text-primary"
@@ -284,15 +271,15 @@ const Header = () => {
                   >
                     <Avatar className="h-11 w-11">
                       <AvatarImage
-                        src={currentUser.avatar_url ?? undefined}
-                        alt={currentUser.name ?? 'Avatar do Usuário'}
+                        src={user.avatar_url ?? undefined}
+                        alt={user.name ?? 'Avatar do Usuário'}
                         data-ai-hint={
-                          currentUser.dataAiHint || 'user avatar mobile'
+                          user.dataAiHint || 'user avatar mobile'
                         }
                       />
                       <AvatarFallback>
-                        {currentUser.name ? (
-                          currentUser.name.substring(0, 2).toUpperCase()
+                        {user.name ? (
+                          user.name.substring(0, 2).toUpperCase()
                         ) : (
                           <UserCircle className="h-7 w-7" />
                         )}
@@ -300,7 +287,7 @@ const Header = () => {
                     </Avatar>
                     <div className="flex flex-col">
                       <span className="font-medium text-foreground">
-                        {currentUser.name}
+                        {user.name}
                       </span>
                       <span className="text-sm">Perfil</span>
                     </div>
@@ -341,14 +328,24 @@ const Header = () => {
               </nav>
 
               <div className="mt-auto space-y-3 border-t p-4">
-                {isLoadingUser ? null : isLoggedIn ? (
+                {isLoading ? null : isLoggedIn ? (
                   <Button
                     variant="outline"
                     className="flex w-full items-center justify-center py-3 text-base hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                     onClick={handleLogout}
+                    disabled={isLoggingOut}
                   >
-                    <LogOut className="mr-2 h-5 w-5" />
-                    Sair
+                    {isLoggingOut ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Saindo...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="mr-2 h-5 w-5" />
+                        Sair
+                      </>
+                    )}
                   </Button>
                 ) : (
                   <>
@@ -379,5 +376,3 @@ const Header = () => {
 };
 
 export default Header;
-
-    

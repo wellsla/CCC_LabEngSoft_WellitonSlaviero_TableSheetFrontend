@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 
 export default function EditCharacterPage() {
   const router = useRouter();
@@ -35,7 +35,6 @@ export default function EditCharacterPage() {
           router.replace('/characters');
         }
       } catch (error: any) {
-        console.error('Failed to fetch character for editing:', error);
         const errorDescription = `Falha ao carregar dados do personagem: ${error.message || 'Erro desconhecido'}`;
         toast({
           title: 'Erro',
@@ -51,16 +50,16 @@ export default function EditCharacterPage() {
     if (characterId) {
       fetchCharacter();
     } else {
-      router.replace('/characters'); 
+      router.replace('/characters');
       setIsLoading(false);
     }
   }, [characterId, router, toast]);
 
   React.useEffect(() => {
     if (character?.name) {
-        document.title = `Editar: ${character.name}`;
+      document.title = `Editar: ${character.name}`;
     } else if (!isLoading) {
-        document.title = 'Editar Personagem';
+      document.title = 'Editar Personagem';
     }
   }, [character, isLoading]);
 

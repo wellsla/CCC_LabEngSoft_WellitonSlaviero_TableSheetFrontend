@@ -28,10 +28,12 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import type { Game } from '@/services/game';
-import { createGame, updateGame } from '@/services/game';
-import { Loader2, ImageIcon } from 'lucide-react';
+import { createGame, updateGame, uploadCoverImage } from '@/services/game';
+import { Loader2, ImageIcon, X } from 'lucide-react';
+import { getAuthToken } from '@/lib/tokenManager';
+import { deleteFileByUrlAction } from '@/lib/actions';
 
 const gameFormSchema = z.object({
   name: z
@@ -64,6 +66,8 @@ export function GameForm({ game, isEditMode }: GameFormProps) {
   const [imagePreview, setImagePreview] = React.useState<string | null>(
     game?.cover_image_url || null
   );
+  const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [oldImageUrl] = React.useState(game?.cover_image_url || null);
 
   const form = useForm<GameFormValues>({
     resolver: zodResolver(gameFormSchema),
@@ -88,6 +92,7 @@ export function GameForm({ game, isEditMode }: GameFormProps) {
         });
         return;
       }
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
@@ -101,60 +106,90 @@ export function GameForm({ game, isEditMode }: GameFormProps) {
     }
   };
 
+  const handleRemoveImage = () => {
+    setImagePreview(null);
+    setImageFile(null);
+    form.setValue('cover_image_url', '', { shouldDirty: true });
+  };
+
   async function onSubmit(data: GameFormValues) {
     setIsSubmitting(true);
     try {
-      let result;
-      const payload = {
-        ...data,
-        cover_image_url: data.cover_image_url || undefined,
-      };
-
       if (isEditMode && game) {
-        result = await updateGame(game.id, payload);
-        if (result.success && result.game) {
-          toast({
-            title: 'Jogo Atualizado',
-            description: `O jogo "${result.game.name}" foi atualizado com sucesso.`,
-          });
+        let imageUrl = game.cover_image_url;
+        if (imageFile) {
+          const uploadResult = await uploadCoverImage(imageFile, game.id);
+          if (uploadResult.success && uploadResult.url) {
+            imageUrl = uploadResult.url;
+          } else {
+            toast({
+              title: 'Erro no Upload',
+              description:
+                uploadResult.rawMessage || 'Falha ao enviar a imagem.',
+              variant: 'destructive',
+            });
+            setIsSubmitting(false);
+            return;
+          }
+        } else if (!data.cover_image_url) {
+          imageUrl = '';
+        }
+
+        const result = await updateGame(game.id, {
+          ...data,
+          cover_image_url: imageUrl,
+        });
+        if (result.success) {
+          toast({ title: 'Jogo Atualizado', description: result.rawMessage });
+          if (!data.cover_image_url && oldImageUrl) {
+            const token = getAuthToken();
+            await deleteFileByUrlAction(oldImageUrl, token);
+          }
           router.push('/admin/games');
           router.refresh();
         } else {
-          const errorDescription =
-            result.rawMessage || 'Ocorreu um erro inesperado.';
           toast({
-            title: 'Falha na Atualização',
-            description: `Não foi possível editar o jogo. Detalhes: ${errorDescription}`,
+            title: 'Erro na Atualização',
+            description: result.rawMessage,
             variant: 'destructive',
           });
         }
       } else {
-        result = await createGame(payload);
+        // Create mode
+        const result = await createGame({
+          ...data,
+          cover_image_url: undefined,
+        });
         if (result.success && result.game) {
-          toast({
-            title: 'Jogo Criado',
-            description: `O jogo "${result.game.name}" foi criado com sucesso.`,
-          });
+          toast({ title: 'Jogo Criado', description: result.rawMessage });
+
+          if (imageFile) {
+            const uploadResult = await uploadCoverImage(
+              imageFile,
+              result.game.id
+            );
+            if (!uploadResult.success) {
+              toast({
+                title: 'Aviso',
+                description: `O jogo foi criado, mas a imagem não pôde ser enviada: ${uploadResult.rawMessage}. Você pode editá-lo para tentar novamente.`,
+                variant: 'destructive',
+              });
+            }
+          }
           router.push('/admin/games');
           router.refresh();
         } else {
-          const errorDescription =
-            result.rawMessage || 'Ocorreu um erro inesperado.';
           toast({
-            title: 'Falha na Criação',
-            description: `Não foi possível criar o jogo. Detalhes: ${errorDescription}`,
+            title: 'Erro na Criação',
+            description: result.rawMessage,
             variant: 'destructive',
           });
         }
       }
     } catch (error: any) {
-      console.error('Failed to save game:', error);
-      const errorDescription = `Ocorreu um erro inesperado: ${
-        error.message || 'Erro desconhecido'
-      }`;
       toast({
-        title: 'Erro',
-        description: errorDescription,
+        title: 'Erro Inesperado',
+        description: error.message || 'Ocorreu um erro.',
         variant: 'destructive',
       });
     } finally {
@@ -229,16 +264,27 @@ export function GameForm({ game, isEditMode }: GameFormProps) {
                 />
               </div>
 
-              <div className="w-full space-y-2 md:w-64 flex-shrink-0">
+              <div className="w-full flex-shrink-0 space-y-2 md:w-64">
                 <FormLabel>Imagem de Capa (Opcional)</FormLabel>
                 <div className="relative flex aspect-video w-full items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/30">
                   {imagePreview ? (
-                    <Image
-                      src={imagePreview}
-                      alt="Prévia da capa"
-                      layout="fill"
-                      className="object-contain rounded-md p-1"
-                    />
+                    <>
+                      <Image
+                        src={imagePreview}
+                        alt="Prévia da capa"
+                        layout="fill"
+                        className="object-contain rounded-md p-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive/80 text-destructive-foreground opacity-80 hover:opacity-100"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground">
                       <ImageIcon className="mx-auto h-12 w-12" />

@@ -1,60 +1,68 @@
 
-
-import {
-  getGameClassListApi,
-  getGameClassDetailsApi,
-  createGameClassApi,
-  updateGameClassApi,
-  deleteGameClassApi,
-  type GameClass,
-  handleAxiosError,
-  type ProcessedError,
-} from '@/lib/apiClient';
+import { apiClient } from '@/lib/clientApi';
+import { ApiClient, type GameClass } from '@/lib/apiClient';
+import { handleAxiosError, type ProcessedError } from '@/lib/apiErrorHandler';
 
 export type { GameClass };
 
 interface GameClassServiceResponse {
-    success: boolean;
-    rawMessage?: string;
-    gameClass?: GameClass;
-    gameClasses?: GameClass[];
+  success: boolean;
+  rawMessage?: string;
+  gameClass?: GameClass;
+  gameClasses?: GameClass[];
+  errors?: Record<string, string[]>;
 }
 
 export async function getGameClassList(gameId?: string): Promise<GameClass[]> {
   try {
-    const classes = await getGameClassListApi(gameId);
-    return classes;
+    const response = await apiClient.getGameClassList(gameId);
+    return response.data.filter((cls) => !cls.deleted_at);
   } catch (error) {
-    console.error('[GameClassService Mock] getGameClassList: API error.', error);
     const processedError = handleAxiosError(error);
-    throw new Error(processedError.rawMessage || 'Falha ao buscar as classes do jogo.');
+    throw new Error(
+      processedError.rawMessage || 'Falha ao buscar as classes do jogo.'
+    );
   }
 }
 
-export async function getGameClassDetails(classId: string): Promise<GameClass | null> {
+export async function getGameClassDetails(
+  classId: string
+): Promise<GameClass | null> {
   try {
-    const gameClass = await getGameClassDetailsApi(classId);
-    return gameClass;
+    const response = await apiClient.getGameClass(classId);
+    return response.data;
   } catch (error: any) {
-    console.error(`[GameClassService Mock] getGameClassDetails for ${classId}: API error.`, error);
     if (error.response && error.response.status === 404) {
       return null;
     }
     const processedError = handleAxiosError(error);
-    throw new Error(processedError.rawMessage || `Falha ao buscar a classe ${classId}.`);
+    throw new Error(
+      processedError.rawMessage || `Falha ao buscar a classe ${classId}.`
+    );
   }
 }
 
 export async function createGameClass(
   classData: Omit<GameClass, 'id' | 'created_at' | 'updated_at'>
 ): Promise<GameClassServiceResponse> {
+  const apiPayload = {
+    ...classData,
+    game_id: parseInt(classData.game_id, 10),
+  };
   try {
-    const newGameClass = await createGameClassApi(classData);
-    return { success: true, gameClass: newGameClass };
+    const result = await apiClient.createGameClass(apiPayload as any);
+    return {
+      success: true,
+      gameClass: result.data,
+      rawMessage: result.message,
+    };
   } catch (error) {
-    console.error('[GameClassService Mock] createGameClass: API error.', error);
     const apiError: ProcessedError = handleAxiosError(error);
-    return { success: false, rawMessage: apiError.rawMessage };
+    return {
+      success: false,
+      rawMessage: apiError.rawMessage,
+      errors: apiError.errors,
+    };
   }
 }
 
@@ -62,24 +70,40 @@ export async function updateGameClass(
   classId: string,
   classData: Partial<Omit<GameClass, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<GameClassServiceResponse> {
+  const apiPayload: any = { ...classData };
+  if (classData.game_id) {
+    apiPayload.game_id = parseInt(classData.game_id, 10);
+  }
+
   try {
-    const updatedGameClass = await updateGameClassApi(classId, classData);
-    return { success: true, gameClass: updatedGameClass };
+    const result = await apiClient.updateGameClass(classId, apiPayload);
+    return {
+      success: true,
+      gameClass: result.data,
+      rawMessage: result.message,
+    };
   } catch (error) {
-    console.error(`[GameClassService Mock] updateGameClass for ${classId}: API error.`, error);
     const apiError: ProcessedError = handleAxiosError(error);
-    return { success: false, rawMessage: apiError.rawMessage };
+    return {
+      success: false,
+      rawMessage: apiError.rawMessage,
+      errors: apiError.errors,
+    };
   }
 }
 
 export async function deleteGameClass(
-  classId: string
+  classId: string,
+  token: string | null
 ): Promise<{ success: boolean; rawMessage?: string }> {
+  if (!token) {
+    return { success: false, rawMessage: 'Não autenticado.' };
+  }
   try {
-    await deleteGameClassApi(classId);
-    return { success: true };
+    const serverApiClient = new ApiClient(token);
+    const result = await serverApiClient.deleteGameClass(classId);
+    return { success: true, rawMessage: result.message };
   } catch (error) {
-    console.error(`[GameClassService Mock] deleteGameClass for ${classId}: API error.`, error);
     const apiError = handleAxiosError(error);
     return { success: false, rawMessage: apiError.rawMessage };
   }

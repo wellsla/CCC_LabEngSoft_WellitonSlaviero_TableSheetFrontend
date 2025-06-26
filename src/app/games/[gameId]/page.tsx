@@ -1,17 +1,12 @@
 
 import Image from 'next/image';
-import { getGameDetails } from '@/services/game';
-import {
-  getPdfDocumentsForGame,
-  type PdfDocument,
-} from '@/services/pdfDocuments';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-} from '@/components/ui/card'; // CardFooter removed as not used
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -27,41 +22,66 @@ import {
 import { notFound } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import type { Metadata } from 'next';
+import { ApiClient, type Game } from '@/lib/apiClient';
+
+async function getGame(gameId: string): Promise<Game | null> {
+  const apiClient = new ApiClient();
+  try {
+    const response = await apiClient.getGame(gameId);
+    return response.data;
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      return null;
+    }
+    // Re-throw other errors to be caught by Next.js error boundary
+    throw error;
+  }
+}
 
 interface GameDetailsPageProps {
-  params: { gameId: string };
+  params: Promise<{ gameId: string }>;
 }
 
 export async function generateMetadata({
-  params,
-}: GameDetailsPageProps): Promise<Metadata> {
-  const game = await getGameDetails(params.gameId);
+                                         params,
+                                       }: GameDetailsPageProps): Promise<Metadata> {
+  const { gameId } = await params;
+  const game = await getGame(gameId);
+
+  if (!game) {
+    return {
+      title: 'Jogo não encontrado',
+    };
+  }
+
   return {
-    title: `${game?.name || 'Game'} Details - TableSheet`,
-    description: `Details for the game: ${game?.name || 'Unknown Game'}`,
+    title: `${game.name} - Detalhes do Jogo`,
+    description: `Detalhes do jogo: ${game.name}`,
   };
 }
 
 export default async function GameDetailsPage({ params }: GameDetailsPageProps) {
-  const game = await getGameDetails(params.gameId);
+  const { gameId } = await params;
+  const game = await getGame(gameId);
 
   if (!game) {
     notFound();
   }
 
-  // Optional: Only show active games on public page
-  // if (!game.is_active) {
-  //   notFound();
-  // }
-
-  const pdfDocuments = await getPdfDocumentsForGame(params.gameId);
+  const pdfDocuments =
+    game.books?.map((book) => ({
+      id: String(book.id),
+      name: book.name,
+      url: book.document_url,
+      gameId: game.id,
+    })) || [];
 
   return (
     <div className="container mx-auto px-4 py-8">
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/games">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Games
+          Voltar para Jogos
         </Link>
       </Button>
 
@@ -73,12 +93,12 @@ export default async function GameDetailsPage({ params }: GameDetailsPageProps) 
               <div>
                 <CardTitle className="text-3xl">{game.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Version: {game.version}
+                  Versão: {game.version}
                 </p>
               </div>
             </div>
             <Badge
-              variant={game.is_active ? 'secondary' : 'outline'}
+              variant={game.is_active ? 'default' : 'outline'}
               className="w-fit whitespace-nowrap"
             >
               {game.is_active ? (
@@ -98,7 +118,7 @@ export default async function GameDetailsPage({ params }: GameDetailsPageProps) 
                 alt={`Cover art for ${game.name}`}
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                className="object-contain p-2" // p-2 to give some space if image is smaller than container
+                className="object-contain p-2"
                 data-ai-hint={game.dataAiHint || 'game cover'}
               />
             </div>
@@ -117,7 +137,7 @@ export default async function GameDetailsPage({ params }: GameDetailsPageProps) 
               <div className="space-y-4">
                 <h3 className="flex items-center text-xl font-semibold text-primary">
                   <BookOpen className="mr-2 h-5 w-5 text-accent" />
-                  Rulebooks & Documents
+                  Manuais e Documentos
                 </h3>
                 <ul className="list-inside space-y-2">
                   {pdfDocuments.map((pdf) => (

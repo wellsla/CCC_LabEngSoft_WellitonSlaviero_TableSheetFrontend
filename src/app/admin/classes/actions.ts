@@ -1,19 +1,15 @@
-
 'use server';
 
-import { deleteGameClass as deleteGameClassService } from '@/services/class';
+import { deleteGameClass } from '@/services/class';
+import { revalidatePath } from 'next/cache';
 
 export async function deleteGameClassAction(
-  classId: string
+  classId: string,
+  token: string | null
 ): Promise<{ success: boolean; rawMessage?: string }> {
-  try {
-    const result = await deleteGameClassService(classId);
-    return result; 
-  } catch (error: any) {
-    console.error('Error in deleteGameClassAction:', error);
-    return {
-      success: false,
-      rawMessage: error.message || 'Ocorreu um erro inesperado ao excluir a classe.',
-    };
+  const result = await deleteGameClass(classId, token);
+  if (result.success) {
+    revalidatePath('/admin/classes');
   }
+  return result;
 }

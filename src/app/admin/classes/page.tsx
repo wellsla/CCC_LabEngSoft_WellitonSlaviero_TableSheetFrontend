@@ -3,12 +3,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { getGameClassList, type GameClass } from '@/services/class';
-import { getGameList } from '@/services/game';
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,86 +19,59 @@ import {
 } from '@/components/ui/table';
 import {
   PlusCircle,
-  Edit,
-  Trash2,
-  BookOpen, 
-  Loader2,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import { deleteGameClassAction } from './actions';
-import { useRouter } from 'next/navigation';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ClassTableActions } from './class-table-actions';
+import type { GameClass } from '@/lib/apiClient';
+import { getGameClassList } from '@/services/class';
+import { useToast } from '@/hooks/useToast';
+import Loading from './loading';
 
 export default function AdminGameClassesPage() {
   const [gameClasses, setGameClasses] = React.useState<GameClass[]>([]);
-  const [gamesMap, setGamesMap] = React.useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
-  const router = useRouter();
 
-  React.useEffect(() => {
-    document.title = 'Gerenciar Classes';
-  }, []);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [rowsPerPage, setRowsPerPage] = React.useState(10);
 
-  React.useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      try {
-        const [classesList, allGames] = await Promise.all([
-          getGameClassList(),
-          getGameList()
-        ]);
-        
-        const fetchedGamesMap = new Map<string, string>();
-        allGames.forEach(game => fetchedGamesMap.set(game.id, game.name));
-
-        setGamesMap(fetchedGamesMap);
-        setGameClasses(classesList);
-
-      } catch (error: any) {
-        console.error('Failed to fetch game classes or games:', error);
-        toast({ title: "Erro", description: `Falha ao carregar os dados: ${error.message || 'Erro desconhecido'}`, variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const classes = await getGameClassList();
+      setGameClasses(classes);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar dados',
+        description: error.message || 'Não foi possível buscar as classes e jogos.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
     }
+  }, [toast]);
+
+  React.useEffect(() => {
     fetchData();
-  }, [toast, router]);
+  }, [fetchData]);
 
-  const handleDelete = async (classId: string, className: string) => {
-    const result = await deleteGameClassAction(classId);
-    if (result.success) {
-      toast({
-        title: 'Classe Excluída',
-        description: `A classe "${className}" foi excluída com sucesso.`,
-      });
-      setGameClasses(prev => prev.filter(gc => gc.id !== classId));
-    } else {
-      const errorDescription = result.rawMessage || 'Ocorreu um erro inesperado.';
-      toast({
-        title: 'Erro',
-        description: `Não foi possível excluir "${className}". Detalhes: ${errorDescription}`,
-        variant: 'destructive',
-      });
-    }
-  };
-  
+  const totalPages = Math.ceil(gameClasses.length / rowsPerPage);
+  const paginatedClasses = gameClasses.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
   if (isLoading) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -126,55 +96,83 @@ export default function AdminGameClassesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Jogo Associado</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {gameClasses.map((gc) => (
-                <TableRow key={gc.id}>
-                  <TableCell className="font-medium">{gc.name}</TableCell>
-                  <TableCell>{gamesMap.get(gc.game_id) || gc.game_id}</TableCell>
-                  <TableCell className="max-w-xs truncate">{gc.description || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild variant="ghost" size="icon" className="hover:text-primary">
-                      <Link href={`/admin/classes/${gc.id}/edit`}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                          <AlertDialogDescription>
-                           Tem certeza que deseja excluir a classe "{gc.name}"?
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(gc.id, gc.name)} className="bg-destructive hover:bg-destructive/90">
-                            Confirmar Exclusão
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
+        <>
+          <div className="overflow-x-auto rounded-lg border shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Jogo Associado</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {paginatedClasses.map((gc) => (
+                  <TableRow key={gc.id}>
+                    <TableCell className="font-medium">{gc.name}</TableCell>
+                    <TableCell>{gc.game?.name || gc.game_id}</TableCell>
+                    <TableCell className="max-w-xs truncate">{gc.description || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <ClassTableActions classId={gc.id} className={gc.name} onActionSuccess={fetchData} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Total de {gameClasses.length} classes.
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Linhas por página</p>
+                <Select
+                  value={`${rowsPerPage}`}
+                  onValueChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder={`${rowsPerPage}`} />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[5, 10, 20, 50].map((pageSize) => (
+                      <SelectItem key={pageSize} value={`${pageSize}`}>
+                        {pageSize}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                Página {currentPage} de {totalPages}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <span className="sr-only">Go to previous page</span>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                >
+                  <span className="sr-only">Go to next page</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

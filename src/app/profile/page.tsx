@@ -1,54 +1,85 @@
 
-'use client'; 
+'use client';
 
 import * as React from 'react';
-import { getUserProfile, type UserProfile } from '@/services/userProfile'; 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useRouter } from 'next/navigation';
 import { ProfileForm } from '@/components/profile/profile-form';
-import { ChangePasswordForm } from '@/components/profile/change-password-form';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
+  CardContent,
+  CardFooter,
 } from '@/components/ui/card';
-import { UserCircle2, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { UserCircle2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { PasswordForm } from '@/components/profile/password-form';
+
+function ProfilePageSkeleton() {
+  return (
+    <div className="container mx-auto animate-pulse px-4 py-8">
+      <div className="mb-8 flex items-center gap-3">
+        <Skeleton className="h-10 w-10" />
+        <Skeleton className="h-9 w-48" />
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="mt-2 h-4 w-full max-w-lg" />
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <div className="flex flex-col items-center gap-4 sm:flex-row">
+            <Skeleton className="h-24 w-24 rounded-full" />
+            <div className="w-full space-y-2 sm:w-auto">
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end border-t pt-6">
+          <Skeleton className="h-10 w-32" />
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = React.useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const { user, isLoading } = useAuth();
 
   React.useEffect(() => {
     document.title = 'Meu Perfil - TableSheet';
   }, []);
 
   React.useEffect(() => {
-    const currentUser = getUserProfile(); 
-    if (!currentUser) {
+    if (!isLoading && !user) {
       router.push('/auth/login?message=Please+login+to+view+your+profile');
-    } else {
-      setUser(currentUser);
     }
-    setIsLoading(false);
-  }, [router]);
+  }, [user, isLoading, router]);
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Carregando...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <p>Redirecionando para o login...</p>
-      </div>
-    );
+  if (isLoading || !user) {
+    return <ProfilePageSkeleton />;
   }
 
   return (
@@ -58,29 +89,33 @@ export default function ProfilePage() {
         <h1 className="text-3xl font-bold text-primary">Meu Perfil</h1>
       </div>
 
-      <Tabs defaultValue="edit-profile" className="w-full">
+      <Tabs defaultValue="info" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
-          <TabsTrigger value="edit-profile">Editar Perfil</TabsTrigger>
-          <TabsTrigger value="change-password">Alterar Senha</TabsTrigger>
+          <TabsTrigger value="info">Informações do Perfil</TabsTrigger>
+          <TabsTrigger value="password">Alterar Senha</TabsTrigger>
         </TabsList>
-        <TabsContent value="edit-profile">
+        <TabsContent value="info">
           <Card>
             <CardHeader>
               <CardTitle>Informações do Perfil</CardTitle>
               <CardDescription>
-                Atualize seus dados pessoais aqui.
+                Atualize seus dados pessoais e avatar aqui. Clique em salvar
+                quando terminar.
               </CardDescription>
             </CardHeader>
-            <ProfileForm user={user} /> 
+            <ProfileForm user={user} />
           </Card>
         </TabsContent>
-        <TabsContent value="change-password">
+        <TabsContent value="password">
           <Card>
             <CardHeader>
               <CardTitle>Alterar Senha</CardTitle>
-              <CardDescription>Atualize a senha da sua conta.</CardDescription>
+              <CardDescription>
+                Para sua segurança, forneça sua senha atual para definir uma
+                nova.
+              </CardDescription>
             </CardHeader>
-            <ChangePasswordForm />
+            <PasswordForm />
           </Card>
         </TabsContent>
       </Tabs>

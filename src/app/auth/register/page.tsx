@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { Loader2 } from 'lucide-react';
 import {
   registerAction,
@@ -38,22 +39,16 @@ const registerFormSchema = z
     name: z.string().min(2, {
       message: 'Deve ter pelo menos 2 caracteres.',
     }),
-    username: z
-      .string()
-      .trim()
-      .min(3, {
-        message: 'Deve ter pelo menos 3 caracteres.',
-      }),
+    username: z.string().trim().min(3, {
+      message: 'Deve ter pelo menos 3 caracteres.',
+    }),
     email: z.string().email({
       message: 'Por favor, insira um endereço de e-mail válido.',
     }),
-    password: z
-      .string()
-      .trim()
-      .min(8, {
-        message: 'Deve ter pelo menos 8 caracteres.',
-      }),
-    confirmPassword: z.string().trim(),
+    password: z.string().trim().min(8, {
+      message: 'Deve ter pelo menos 8 caracteres.',
+    }),
+    password_confirmation: z.string().trim(),
     birth_date: z
       .string()
       .optional()
@@ -66,15 +61,16 @@ const registerFormSchema = z
       )
       .or(z.literal('')),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "As senhas não coincidem.",
-    path: ['confirmPassword'],
+  .refine((data) => data.password === data.password_confirmation, {
+    message: 'As senhas não coincidem.',
+    path: ['password_confirmation'],
   });
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
 export default function RegisterPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   React.useEffect(() => {
@@ -88,7 +84,7 @@ export default function RegisterPage() {
       username: '',
       email: '',
       password: '',
-      confirmPassword: '',
+      password_confirmation: '',
       birth_date: '',
     },
     mode: 'onChange',
@@ -97,39 +93,23 @@ export default function RegisterPage() {
   async function onSubmit(data: RegisterFormValues) {
     setIsSubmitting(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { confirmPassword, ...registrationData } = data;
-
       const payload: RegisterFormValuesForAction = {
-        ...registrationData,
-        birth_date: registrationData.birth_date || undefined,
+        ...data,
+        birth_date: data.birth_date || undefined,
       };
       const result: AuthActionResponse = await registerAction(payload);
 
       if (result.success && result.user) {
         toast({
-          title: 'Cadastro Bem-sucedido',
-          description: `Bem-vindo(a), ${result.user.name}! Você agora está logado(a).`,
+          title: 'Cadastro Bem-sucedido!',
+          description:
+            result.rawMessage ||
+            `Sua conta foi criada. Por favor, faça login para continuar.`,
         });
-        
-        // MOCK AUTH: Store user type and data
-        localStorage.setItem('mockUserType', result.user.is_admin ? 'admin' : 'player');
-        localStorage.setItem('sessionUserData', JSON.stringify(result.user));
-
-        const redirectPath = result.user.is_admin
-          ? '/admin/games'
-          : '/characters';
-        window.location.assign(redirectPath);
-
-      } else if (result.success && result.rawMessage) { // Registration OK, auto-login failed
-        toast({
-          title: 'Cadastro Bem-sucedido',
-          description: result.rawMessage,
-        });
-        window.location.assign('/auth/login');
-        setIsSubmitting(false);
-      } else { // Registration failed
-        const errorDescription = result.rawMessage || 'Não foi possível realizar o cadastro.';
+        router.push('/auth/login');
+      } else {
+        const errorDescription =
+          result.rawMessage || 'Não foi possível realizar o cadastro.';
         toast({
           title: 'Falha no Cadastro',
           description: errorDescription,
@@ -142,7 +122,7 @@ export default function RegisterPage() {
             });
           });
         } else {
-           if (result.rawMessage?.toLowerCase().includes('email')) {
+          if (result.rawMessage?.toLowerCase().includes('email')) {
             form.setError('email', { message: errorDescription });
           } else if (result.rawMessage?.toLowerCase().includes('username')) {
             form.setError('username', { message: errorDescription });
@@ -153,8 +133,9 @@ export default function RegisterPage() {
         setIsSubmitting(false);
       }
     } catch (error: any) {
-      console.error('Registration error on client:', error);
-      const displayMessage = `Ocorreu um erro inesperado. Detalhes: ${error.message || 'Erro desconhecido'}`;
+      const displayMessage = `Ocorreu um erro inesperado. Detalhes: ${
+        error.message || 'Erro desconhecido'
+      }`;
       toast({
         title: 'Falha no Cadastro',
         description: displayMessage,
@@ -170,7 +151,8 @@ export default function RegisterPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Criar Conta</CardTitle>
           <CardDescription>
-            Cadastre-se no TableSheet para gerenciar suas aventuras de RPG de mesa.
+            Cadastre-se no TableSheet para gerenciar suas aventuras de RPG de
+            mesa.
           </CardDescription>
         </CardHeader>
         <Form {...form}>
@@ -201,7 +183,10 @@ export default function RegisterPage() {
                   <FormItem>
                     <FormLabel>Nome de Usuário</FormLabel>
                     <FormControl>
-                      <Input placeholder="Escolha um nome de usuário" {...field} />
+                      <Input
+                        placeholder="Escolha um nome de usuário"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -231,11 +216,7 @@ export default function RegisterPage() {
                   <FormItem>
                     <FormLabel>Data de Nascimento (Opcional)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        {...field}
-                        value={field.value ?? ''}
-                      />
+                      <Input type="date" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -260,7 +241,7 @@ export default function RegisterPage() {
               />
               <FormField
                 control={form.control}
-                name="confirmPassword"
+                name="password_confirmation"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Confirmar Senha</FormLabel>

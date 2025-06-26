@@ -33,15 +33,23 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import type { GameClass } from '@/services/class';
 import { createGameClass, updateGameClass } from '@/services/class';
 import { getGameList, type Game } from '@/services/game';
 import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
 
 const gameClassFormSchema = z.object({
-  name: z.string().min(2, { message: 'Mínimo de 2 caracteres.' }).max(100, { message: 'Máximo de 100 caracteres.' }),
-  description: z.string().max(1000, { message: 'Máximo de 1000 caracteres.' }).optional(),
+  name: z
+    .string()
+    .min(2, { message: 'Mínimo de 2 caracteres.' })
+    .max(100, { message: 'Máximo de 100 caracteres.' }),
+  description: z
+    .string()
+    .max(1000, { message: 'Máximo de 1000 caracteres.' })
+    .optional(),
   game_id: z.string().min(1, { message: 'É obrigatório associar a um jogo.' }),
 });
 
@@ -57,37 +65,49 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [games, setGames] = React.useState<Game[]>([]);
-  const [isLoadingGames, setIsLoadingGames] = React.useState(true);
+  const [isLoadingDropdowns, setIsLoadingDropdowns] = React.useState(true);
 
   const form = useForm<GameClassFormValues>({
     resolver: zodResolver(gameClassFormSchema),
     defaultValues: {
-      name: gameClass?.name || '',
-      description: gameClass?.description || '',
-      game_id: gameClass?.game_id || '',
+      name: '',
+      description: '',
+      game_id: '',
     },
     mode: 'onChange',
   });
+  const { reset } = form;
 
   React.useEffect(() => {
-    async function fetchGames() {
-      setIsLoadingGames(true);
+    async function fetchDropdownData() {
+      setIsLoadingDropdowns(true);
       try {
         const gameList = await getGameList();
         setGames(gameList);
       } catch (error: any) {
-        console.error("Failed to fetch games for dropdown:", error);
         toast({
           title: 'Erro',
-          description: `Não foi possível carregar os jogos: ${error.message || 'Erro inesperado'}`,
+          description: `Não foi possível carregar os jogos: ${
+            error.message || 'Erro inesperado'
+          }`,
           variant: 'destructive',
         });
       } finally {
-        setIsLoadingGames(false);
+        setIsLoadingDropdowns(false);
       }
     }
-    fetchGames();
+    fetchDropdownData();
   }, [toast]);
+
+  React.useEffect(() => {
+    if (isEditMode && gameClass && games.length > 0) {
+      reset({
+        name: gameClass.name || '',
+        description: gameClass.description || '',
+        game_id: String(gameClass.game_id || ''),
+      });
+    }
+  }, [isEditMode, gameClass, games, reset]);
 
   async function onSubmit(data: GameClassFormValues) {
     setIsSubmitting(true);
@@ -110,7 +130,8 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
         } else {
           toast({
             title: 'Falha na Atualização',
-            description: result.rawMessage || 'Ocorreu um erro ao atualizar a classe.',
+            description:
+              result.rawMessage || 'Ocorreu um erro ao atualizar a classe.',
             variant: 'destructive',
           });
         }
@@ -126,7 +147,8 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
         } else {
           toast({
             title: 'Falha na Criação',
-            description: result.rawMessage || 'Ocorreu um erro ao criar a classe.',
+            description:
+              result.rawMessage || 'Ocorreu um erro ao criar a classe.',
             variant: 'destructive',
           });
         }
@@ -145,37 +167,54 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditMode ? 'Editar Classe' : 'Adicionar Nova Classe'}</CardTitle>
+        <CardTitle>
+          {isEditMode ? 'Editar Classe' : 'Adicionar Nova Classe'}
+        </CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            <FormField
-              control={form.control}
-              name="game_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Jogo Associado</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingGames}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={isLoadingGames ? 'Carregando jogos...' : 'Selecione um jogo'} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {isLoadingGames && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
-                      {!isLoadingGames && games.map((game) => (
-                        <SelectItem key={game.id} value={game.id}>
-                          {game.name} (v{game.version})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>A classe pertence a qual sistema de jogo?</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {isLoadingDropdowns ? (
+              <div className="space-y-2">
+                <Label>Jogo Associado</Label>
+                <Skeleton className="h-10 w-full" />
+                <FormDescription>
+                  A classe pertence a qual sistema de jogo?
+                </FormDescription>
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="game_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Jogo Associado</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ''}
+                      key={`game-${games.length}`}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um jogo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {games.map((game) => (
+                          <SelectItem key={game.id} value={String(game.id)}>
+                            {game.name} (v{game.version})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      A classe pertence a qual sistema de jogo?
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="name"
@@ -185,7 +224,9 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
                   <FormControl>
                     <Input placeholder="Ex: Guerreiro" {...field} />
                   </FormControl>
-                  <FormDescription>O nome da classe de personagem.</FormDescription>
+                  <FormDescription>
+                    O nome da classe de personagem.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -211,7 +252,7 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
             />
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-6">
-            <Button type="submit" disabled={isSubmitting || isLoadingGames}>
+            <Button type="submit" disabled={isSubmitting || isLoadingDropdowns}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

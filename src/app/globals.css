@@ -38,11 +38,6 @@ body {
     --input: 40 20% 92%;
     --ring: 28 62% 41%; /* Ochre/Brown */
     
-    --chart-1: 14 69% 47%; /* Terracotta Red */
-    --chart-2: 28 62% 41%; /* Ochre/Brown */
-    --chart-3: 10 56% 20%; /* Darkest Brown */
-    --chart-4: 10 25% 45%; /* Muted brown */
-    --chart-5: 0 84% 60%;   /* A standard bright red for error charts */
     --radius: 0.5rem;
   }
 
@@ -75,12 +70,6 @@ body {
     --border: 213 29% 25%;
     --input: 213 29% 25%;
     --ring: 28 62% 51%; /* Ochre/Brown accent for ring */
-
-    --chart-1: 40 60% 90%; /* Light Cream */
-    --chart-2: 28 62% 51%; /* Ochre */
-    --chart-3: 14 69% 57%; /* Terracotta */
-    --chart-4: 40 30% 60%; /* Muted Cream */
-    --chart-5: 0 70% 60%; /* Destructive Red for charts */
   }
 }
 

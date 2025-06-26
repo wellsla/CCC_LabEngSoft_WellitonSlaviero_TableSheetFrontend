@@ -1,19 +1,15 @@
-
 'use server';
 
-import { deleteBook as deleteBookService } from '@/services/book';
+import { deleteBook } from '@/services/book';
+import { revalidatePath } from 'next/cache';
 
 export async function deleteBookAction(
-  bookId: string
+  bookId: string,
+  token: string | null
 ): Promise<{ success: boolean; rawMessage?: string }> {
-  try {
-    const result = await deleteBookService(bookId);
-    return result; 
-  } catch (error: any) {
-    console.error('Error in deleteBookAction:', error);
-    return {
-      success: false,
-      rawMessage: error.message || 'Ocorreu um erro inesperado ao excluir o livro.',
-    };
+  const result = await deleteBook(bookId, token);
+  if (result.success) {
+    revalidatePath('/admin/books');
   }
+  return result;
 }

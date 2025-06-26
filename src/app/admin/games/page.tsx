@@ -23,7 +23,6 @@ import {
   CheckCircle,
   XCircle,
   ImageOff,
-  Loader2,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -36,15 +35,45 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { deleteGameAction } from './actions';
-import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getAuthToken } from '@/lib/tokenManager';
+
+function AdminGameCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div className="flex w-full items-start gap-3">
+            <Skeleton className="h-[50px] w-[80px] shrink-0 rounded-md" />
+            <div className="w-full space-y-2">
+              <Skeleton className="h-6 w-3/5" />
+              <Skeleton className="h-4 w-2/5" />
+            </div>
+          </div>
+          <Skeleton className="mt-2 h-6 w-20 shrink-0 rounded-full sm:mt-0" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pb-4 pt-0">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+      </CardContent>
+      <CardFooter className="flex items-center justify-between border-t pt-4">
+        <Skeleton className="h-5 w-32" />
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24 rounded-md" />
+          <Skeleton className="h-9 w-24 rounded-md" />
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
 
 export default function AdminGamesPage() {
   const [games, setGames] = React.useState<Game[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
-  const router = useRouter();
 
   React.useEffect(() => {
     document.title = 'Gerenciar Jogos - TableSheet';
@@ -54,9 +83,14 @@ export default function AdminGamesPage() {
         const gameList = await getGameList();
         setGames(gameList);
       } catch (error: any) {
-        console.error('Failed to fetch games:', error);
-        const errorDescription = `Falha ao carregar jogos: ${error.message || 'Erro desconhecido'}`;
-        toast({ title: "Erro", description: errorDescription, variant: "destructive" });
+        const errorDescription = `Falha ao carregar jogos: ${
+          error.message || 'Erro desconhecido'
+        }`;
+        toast({
+          title: 'Erro',
+          description: errorDescription,
+          variant: 'destructive',
+        });
       } finally {
         setIsLoading(false);
       }
@@ -65,15 +99,17 @@ export default function AdminGamesPage() {
   }, [toast]);
 
   const handleDelete = async (gameId: string, gameName: string) => {
-    const result = await deleteGameAction(gameId);
+    const token = getAuthToken();
+    const result = await deleteGameAction(gameId, token);
     if (result.success) {
       toast({
         title: 'Jogo Excluído',
         description: `O jogo "${gameName}" foi excluído com sucesso.`,
       });
-      setGames(prev => prev.filter(g => g.id !== gameId));
+      setGames((prev) => prev.filter((g) => g.id !== gameId));
     } else {
-      const errorDescription = result.rawMessage || 'Ocorreu um erro inesperado.';
+      const errorDescription =
+        result.rawMessage || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Falha na Exclusão',
         description: `Não foi possível excluir "${gameName}". Detalhes: ${errorDescription}`,
@@ -81,11 +117,19 @@ export default function AdminGamesPage() {
       });
     }
   };
-  
+
   if (isLoading) {
     return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="container mx-auto animate-pulse px-4 py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-10 w-48 rounded-md" />
+        </div>
+        <div className="space-y-6">
+          <AdminGameCardSkeleton />
+          <AdminGameCardSkeleton />
+          <AdminGameCardSkeleton />
+        </div>
       </div>
     );
   }
@@ -108,7 +152,9 @@ export default function AdminGamesPage() {
             <Gamepad2 className="mx-auto h-12 w-12 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-lg text-muted-foreground">Nenhum jogo encontrado.</p>
+            <p className="text-lg text-muted-foreground">
+              Nenhum jogo encontrado.
+            </p>
             <Button asChild className="mt-4">
               <Link href="/admin/games/new">Crie o Primeiro Jogo</Link>
             </Button>
@@ -117,7 +163,11 @@ export default function AdminGamesPage() {
       ) : (
         <div className="space-y-6">
           {games.map((game) => (
-            <AdminGameCard key={game.id} game={game} onDelete={() => handleDelete(game.id, game.name)} />
+            <AdminGameCard
+              key={game.id}
+              game={game}
+              onDelete={() => handleDelete(game.id, game.name)}
+            />
           ))}
         </div>
       )}
@@ -202,7 +252,9 @@ function AdminGameCard({ game, onDelete }: AdminGameCardProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tem certeza que deseja excluir o jogo "{game.name}"? Esta ação não pode ser desfeita.
+                  Tem certeza que deseja excluir o jogo "{game.name}"? Esta
+                  ação não pode ser desfeita e excluirá classes, raças, livros e
+                  personagens associados a ele.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

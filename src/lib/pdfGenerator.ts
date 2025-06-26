@@ -1,23 +1,6 @@
 
 import { jsPDF } from 'jspdf';
 import type { Character } from '@/services/character';
-import { getGameDetails } from '@/services/game';
-import { getGameClassDetails } from '@/services/class';
-import { getGameRaceDetails } from '@/services/race';
-
-async function fetchData(character: Character) {
-  const [game, gameClass, gameRace] = await Promise.all([
-    getGameDetails(character.game_id),
-    getGameClassDetails(character.class_id),
-    getGameRaceDetails(character.race_id),
-  ]);
-
-  return {
-    gameName: game?.name || 'N/A',
-    className: gameClass?.name || 'N/A',
-    raceName: gameRace?.name || 'N/A',
-  };
-}
 
 export async function generateCharacterPdf(character: Character): Promise<void> {
   const doc = new jsPDF({
@@ -26,7 +9,9 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
     format: 'a4',
   });
 
-  const { gameName, className, raceName } = await fetchData(character);
+  const gameName = character.game?.name || 'N/A';
+  const className = character.class?.name || 'N/A';
+  const raceName = character.race?.name || 'N/A';
 
   // --- Constants ---
   const FONT = 'Helvetica';
@@ -81,7 +66,7 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
 
   // --- 3. Left Column: Stats ---
   const leftColW = contentW * 0.33;
-  
+
   const drawStatBox = (statName: string, value: number, yPos: number) => {
     const boxH = 48;
     drawBox(margin, yPos, leftColW, boxH);
@@ -125,7 +110,6 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
       doc.addImage(character.portrait_url, 'auto', rightColX + 2, yR + 2, portraitSize - 4, portraitSize - 4);
     } catch (e) {
       doc.setFontSize(10).text('Retrato', rightColX + portraitSize / 2, yR + portraitSize / 2, { align: 'center' });
-      console.error('Could not add image to PDF', e);
     }
   } else {
     doc.setFontSize(10).text('Retrato', rightColX + portraitSize / 2, yR + portraitSize / 2, { align: 'center' });
@@ -141,13 +125,13 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
     doc.setTextColor(0);
     doc.setFont(FONT, 'bold');
     doc.text(String(value), x + w / 2, yPos + h / 2 + 6, { align: 'center' });
-    
+
     doc.setFontSize(7);
     doc.setTextColor(100);
     doc.setFont(FONT, 'normal');
     doc.text(label.toUpperCase(), x + w / 2, yPos + h - 5, { align: 'center' });
   };
-  
+
   drawCombatStat('CLASSE DE ARMADURA', character.armor_class, combatStatsX, yR, combatStatsW, combatStatH);
   drawCombatStat('INICIATIVA', `+${character.initiative}`, combatStatsX, yR + combatStatH + gap, combatStatsW, combatStatH);
   drawCombatStat('DESLOCAMENTO', `${character.speed}m`, combatStatsX, yR + (combatStatH + gap) * 2, combatStatsW, combatStatH);
@@ -157,14 +141,14 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
   // --- 4b. Middle Right (HP) ---
   const drawLargeValueBox = (label: string, value: string | number, yPos: number, boxHeight: number) => {
     drawBox(rightColX, yPos, rightColW, boxHeight);
-    
+
     doc.setFontSize(26);
     doc.setTextColor(0);
     doc.setFont(FONT, 'bold');
     const textMetrics = doc.getTextDimensions(String(value));
     const textY = yPos + (boxHeight / 2) + (textMetrics.h / 2) - 5;
     doc.text(String(value), rightColX + rightColW / 2, textY, { align: 'center' });
-    
+
     const titleBarH = 14;
     const titleBarY = yPos + boxHeight - titleBarH;
     doc.setFillColor(230, 230, 230);
@@ -176,7 +160,7 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
 
     return yPos + boxHeight + gap;
   };
-  
+
   const hpBoxHeight = 45;
   yR = drawLargeValueBox('PONTOS DE VIDA MÁXIMOS', character.max_hit_points, yR, hpBoxHeight);
   yR = drawLargeValueBox('PONTOS DE VIDA ATUAIS', character.current_hit_points, yR, hpBoxHeight);
@@ -190,20 +174,20 @@ export async function generateCharacterPdf(character: Character): Promise<void> 
     drawBox(rightColX, yPos, rightColW, boxHeight);
     const titleBarH = 14;
     const contentH = boxHeight - titleBarH;
-    
+
     if (text) {
       doc.setFontSize(10);
       doc.setTextColor(50);
       doc.setFont(FONT, 'normal');
-      
+
       const textLines = doc.splitTextToSize(text, rightColW - 10);
       const lineHeight = doc.getLineHeight(text) / doc.internal.scaleFactor;
       const maxLines = Math.floor((contentH - 10) / lineHeight);
       const visibleLines = textLines.slice(0, maxLines);
-      
+
       doc.text(visibleLines, rightColX + 5, yPos + 12);
     }
-    
+
     const titleBarY = yPos + boxHeight - titleBarH;
     doc.setFillColor(230, 230, 230);
     doc.rect(rightColX, titleBarY, rightColW, titleBarH, 'F');

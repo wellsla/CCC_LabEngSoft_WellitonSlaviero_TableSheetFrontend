@@ -2,24 +2,20 @@
 'use client';
 
 import * as React from 'react';
-import { getGameDetails } from '@/services/game';
+import { getGameDetails, type Game } from '@/services/game';
 import { GameForm } from '../../game-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 
-interface EditGamePageProps {
-  params: { gameId: string };
-}
-
-export default function EditGamePage({ params: routeParams }: EditGamePageProps) {
+export default function EditGamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [game, setGame] = React.useState<Awaited<ReturnType<typeof getGameDetails>>>(null);
+  const [game, setGame] = React.useState<Game | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -27,7 +23,7 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
       if (!gameId) return;
       setIsLoading(true);
       try {
-        const fetchedGame = await getGameDetails(gameId); 
+        const fetchedGame = await getGameDetails(gameId);
         if (fetchedGame) {
           setGame(fetchedGame);
         } else {
@@ -63,9 +59,9 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
 
   if (!game) {
     return (
-        <div className="container mx-auto px-4 py-8 text-center">
-            <p>Carregando...</p>
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center">
+        <p>Carregando...</p>
+      </div>
     );
   }
 

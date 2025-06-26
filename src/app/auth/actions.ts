@@ -4,21 +4,15 @@
 import { redirect } from 'next/navigation';
 import * as z from 'zod';
 import { revalidatePath } from 'next/cache';
-import type { UserProfile } from '@/services/userProfile';
-import {
-  registerApi,
-  loginApi,
-  logoutApi,
-  requestPasswordResetApi,
-  handleAxiosError,
-  type ProcessedError,
-} from '@/lib/apiClient';
+import { ApiClient, type UserProfile } from '@/lib/apiClient';
+import { handleAxiosError, type ProcessedError } from '@/lib/apiErrorHandler';
 
 const serverRegisterFormSchema = z.object({
   name: z.string().min(2),
   username: z.string().trim().min(3),
   email: z.string().email(),
   password: z.string().trim().min(8),
+  password_confirmation: z.string().trim(),
   birth_date: z.string().trim().optional().or(z.literal('')),
 });
 
@@ -32,32 +26,29 @@ export interface AuthActionResponse {
   messageKey?: string;
   rawMessage?: string;
   user?: UserProfile;
-  // Token is no longer sent to the client in the mock setup
+  token?: string;
+  errors?: Record<string, string[]>;
 }
 
 export async function loginAction(data: {
   email: string;
   password: string;
 }): Promise<AuthActionResponse> {
-  console.log('[LoginAction Mock] Attempting mock login for:', data.email);
+  const localApiClient = new ApiClient();
   try {
-    // This now calls the mockApiClient's loginApi
-    const responseData = await loginApi(data);
-    const { user: userFromApi } = responseData;
+    const responseData = await localApiClient.login(data);
+    const { user, token } = responseData.data;
 
-    if (!userFromApi) {
+    if (!user || !token) {
       return {
         success: false,
         messageKey: 'general.unexpectedError',
-        rawMessage: 'Login falhou: resposta inválida do servidor mock.',
+        rawMessage: 'Login falhou: resposta inválida do servidor.',
       };
     }
-    
-    // The "token" from the mock API just tells us the user type.
-    // We pass the full user object to the client to store.
-    return { success: true, user: userFromApi };
+
+    return { success: true, user, token, rawMessage: responseData.message };
   } catch (error: any) {
-    console.error('[LoginAction Mock] Raw error during mock login:', error);
     const processedError: ProcessedError = handleAxiosError(error);
     return {
       success: false,
@@ -68,10 +59,16 @@ export async function loginAction(data: {
   }
 }
 
-export async function logoutAction(): Promise<void> {
-  // With mock, we don't need to call an API. The client will clear localStorage.
-  // This server action's main job is now just to handle the redirect.
-  console.log('[LogoutAction Mock] Logging out and redirecting.');
+export async function logoutAction(token: string | null): Promise<void> {
+  if (token) {
+    const localApiClient = new ApiClient(token);
+    try {
+      await localApiClient.logout();
+    } catch (error) {
+      // Don't log this as an error, as it's expected if the token is already invalid.
+      // The user is being logged out anyway.
+    }
+  }
   revalidatePath('/', 'layout');
   redirect('/auth/login');
 }
@@ -79,23 +76,15 @@ export async function logoutAction(): Promise<void> {
 export async function registerAction(
   data: RegisterFormValuesForAction
 ): Promise<AuthActionResponse> {
-  console.log('[RegisterAction Mock] Attempting mock registration for:', data.email);
+  const localApiClient = new ApiClient();
   try {
-    await registerApi({ ...data, password_confirmation: data.password });
-    
-    // Auto-login after registration
-    const loginResponse = await loginApi({ email: data.email, password: data.password });
+    const result = await localApiClient.register(data);
 
-    if (loginResponse.user) {
-        return { success: true, user: loginResponse.user };
-    }
-    
     return {
-      success: true, // Registration was ok
-      messageKey: 'auth.register.failToastDescription',
-      rawMessage: 'Cadastro bem-sucedido, mas o login automático falhou. Por favor, entre manualmente.',
+      success: true,
+      user: result.data,
+      rawMessage: result.message,
     };
-
   } catch (error: any) {
     const processedError: ProcessedError = handleAxiosError(error);
     return {
@@ -109,12 +98,13 @@ export async function registerAction(
 
 export async function requestPasswordResetAction(
   email: string
-): Promise<{ success: boolean; messageKey?: string, rawMessage?: string }> {
+): Promise<{ success: boolean; messageKey?: string; rawMessage?: string }> {
+  const localApiClient = new ApiClient();
   try {
-    await requestPasswordResetApi(email);
+    const response = await localApiClient.requestPasswordReset(email);
     return {
       success: true,
-      messageKey: 'auth.forgotPassword.successToastDescription',
+      rawMessage: response.message,
     };
   } catch (error: unknown) {
     const processedError = handleAxiosError(error);
@@ -122,6 +112,44 @@ export async function requestPasswordResetAction(
       success: false,
       messageKey: processedError.messageKey,
       rawMessage: processedError.rawMessage,
+    };
+  }
+}
+
+export async function resendVerificationEmailAction(): Promise<{
+  success: boolean;
+  rawMessage?: string;
+}> {
+  const localApiClient = new ApiClient();
+  try {
+    const response = await localApiClient.resendVerificationEmail();
+    return { success: true, rawMessage: response.message };
+  } catch (error: unknown) {
+    const processedError = handleAxiosError(error);
+    return { success: false, rawMessage: processedError.rawMessage };
+  }
+}
+
+export async function resetPasswordAction(data: {
+  token: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}): Promise<{
+  success: boolean;
+  rawMessage?: string;
+  errors?: Record<string, string[]>;
+}> {
+  const localApiClient = new ApiClient();
+  try {
+    const response = await localApiClient.resetPassword(data);
+    return { success: true, rawMessage: response.message };
+  } catch (error: unknown) {
+    const processedError = handleAxiosError(error);
+    return {
+      success: false,
+      rawMessage: processedError.rawMessage,
+      errors: processedError.errors,
     };
   }
 }

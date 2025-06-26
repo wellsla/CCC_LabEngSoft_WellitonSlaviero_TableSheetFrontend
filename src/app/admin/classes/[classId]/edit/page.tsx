@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 
 export default function EditGameClassPage() {
   const params = useParams();
@@ -59,9 +59,9 @@ export default function EditGameClassPage() {
 
   if (!gameClass) {
     return (
-        <div className="container mx-auto px-4 py-8 text-center">
-            <p>Carregando...</p> 
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center">
+        <p>Carregando...</p>
+      </div>
     );
   }
 

@@ -12,15 +12,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Gamepad2, Users, UserCircle2, Info, Loader2 } from 'lucide-react';
-import { getUserProfile } from '@/services/userProfile';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = React.useState<boolean | null>(null);
-
-  React.useEffect(() => {
-    const currentUser = getUserProfile();
-    setIsLoggedIn(!!currentUser);
-  }, []);
+  const { user, isLoading } = useAuth();
+  const isLoggedIn = !!user;
 
   const featureCards = [
     {
@@ -50,7 +46,7 @@ export default function Home() {
     },
   ];
 
-  if (isLoggedIn === null) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -60,7 +56,7 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-12">
+    <div className="container mx-auto space-y-12 px-4 py-8">
       <section className="rounded-lg bg-secondary py-16 text-center shadow-md">
         <h1 className="mb-4 text-4xl font-bold tracking-tight text-primary sm:text-5xl">
           Bem-vindo ao TableSheet
@@ -134,12 +130,12 @@ interface FeatureCardProps {
 }
 
 function FeatureCard({
-  icon,
-  title,
-  description,
-  link,
-  learnMoreText,
-}: FeatureCardProps) {
+                       icon,
+                       title,
+                       description,
+                       link,
+                       learnMoreText,
+                     }: FeatureCardProps) {
   return (
     <Card className="flex flex-col text-center shadow-md transition-shadow duration-300 hover:shadow-lg">
       <CardHeader className="flex-shrink-0">

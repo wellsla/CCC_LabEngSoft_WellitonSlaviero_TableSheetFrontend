@@ -2,14 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
-import {
-  getAllUsers,
-  deleteUserById,
-  type UserProfile,
-} from '@/services/userProfile';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -19,83 +12,77 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  Edit,
-  Trash2,
   UserCheck,
   UserX,
   ShieldCheck,
   ShieldAlert,
   UserCog,
-  Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { UserTableActions } from './user-table-actions';
+import type { UserProfile } from '@/lib/apiClient';
+import { adminGetAllUsers } from '@/services/userProfile';
+import { useToast } from '@/hooks/useToast';
+import Loading from './loading';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = React.useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    document.title = 'Gerenciar Usuários';
-  }, []);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [rowsPerPage, setRowsPerPage] = React.useState(10);
 
-  React.useEffect(() => {
-    const fetchUsers = async () => {
-      setIsLoading(true);
-      try {
-        const userList = await getAllUsers();
-        setUsers(userList);
-      } catch (error: any) {
-        console.error('Failed to fetch users:', error);
-        const errorDescription = `Falha ao carregar usuários: ${error.message || 'Erro desconhecido'}`;
-        toast({ title: "Erro", description: errorDescription, variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchUsers();
+  const fetchUsers = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const userList = await adminGetAllUsers();
+      setUsers(userList);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar usuários',
+        description: error.message || 'Não foi possível buscar a lista de usuários.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }, [toast]);
 
-  const handleDelete = async (userId: string, userName: string) => {
-    const result = await deleteUserById(userId); 
-    if (result.success) {
-      toast({
-        title: 'Usuário Excluído',
-        description: `O usuário "${userName}" foi excluído.`,
-      });
-      setUsers(prev => prev.filter(u => u.id !== userId));
-    } else {
-      const errorDescription = result.rawMessage || 'Ocorreu um erro inesperado.';
-      toast({
-        title: 'Falha na Exclusão',
-        description: `Não foi possível excluir "${userName}". Detalhes: ${errorDescription}`,
-        variant: 'destructive',
-      });
-    }
-  };
-  
-  const formatStatus = (status: string | null | undefined) => {
-    if (!status) return 'N/A';
-    return status.charAt(0).toUpperCase() + status.slice(1);
+  React.useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const formatStatus = (user: UserProfile) => {
+    if (user.is_suspended) return 'Suspenso';
+    if (user.email_verified_at) return 'Ativo';
+    return 'Pendente';
   };
 
+  const getStatusVariant = (user: UserProfile): "secondary" | "destructive" | "outline" => {
+    if (user.is_suspended) return 'destructive';
+    if (user.email_verified_at) return 'secondary';
+    return 'outline';
+  }
+
+  const totalPages = Math.ceil(users.length / rowsPerPage);
+  const paginatedUsers = users.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+
   if (isLoading) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -106,121 +93,112 @@ export default function AdminUsersPage() {
         </h1>
       </div>
 
-      {users.length === 0 && !isLoading ? (
+      {users.length === 0 ? (
         <p className="text-center text-muted-foreground">Nenhum usuário encontrado.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border shadow-sm">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Função</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Suspenso</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.is_admin ? 'default' : 'secondary'}
-                      className="capitalize"
-                    >
-                      {user.is_admin ? (
-                        <ShieldCheck className="mr-1 h-3 w-3" />
-                      ) : (
-                        <ShieldAlert className="mr-1 h-3 w-3" />
-                      )}
-                      {user.is_admin ? 'Admin' : 'Usuário'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        user.status === 'active'
-                          ? 'secondary'
-                          : user.status === 'suspended'
-                            ? 'destructive'
-                            : 'outline'
-                      }
-                      className="capitalize"
-                    >
-                      {user.status === 'active' && (
-                        <UserCheck className="mr-1 h-3 w-3" />
-                      )}
-                      {user.status === 'suspended' && (
-                        <UserX className="mr-1 h-3 w-3" />
-                      )}
-                      {formatStatus(user.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.is_suspended ? 'destructive' : 'secondary'}
-                      className="capitalize"
-                    >
-                      {user.is_suspended ? (
-                        <UserX className="mr-1 h-3 w-3" />
-                      ) : (
-                        <UserCheck className="mr-1 h-3 w-3" />
-                      )}
-                      {user.is_suspended ? 'Sim' : 'Não'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="hover:text-primary"
-                      aria-label={`Editar usuário ${user.name}`}
-                    >
-                      <Link href={`/admin/users/${user.id}/edit`}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="hover:text-destructive"
-                          aria-label={`Excluir usuário ${user.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Confirmar Exclusão
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tem certeza que deseja excluir o usuário "{user.name}" ({user.email})? Esta ação não pode ser desfeita.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(user.id, user.name)}
-                            className="bg-destructive hover:bg-destructive/90"
-                          >
-                            Confirmar Exclusão
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
+        <>
+          <div className="overflow-x-auto rounded-lg border shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {paginatedUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={user.is_admin ? 'default' : 'secondary'}
+                        className="capitalize"
+                      >
+                        {user.is_admin ? (
+                          <ShieldCheck className="mr-1 h-3 w-3" />
+                        ) : (
+                          <ShieldAlert className="mr-1 h-3 w-3" />
+                        )}
+                        {user.is_admin ? 'Admin' : 'Usuário'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={getStatusVariant(user)}
+                        className="capitalize"
+                      >
+                        {user.is_suspended || !user.email_verified_at ? (
+                          <UserX className="mr-1 h-3 w-3" />
+                        ) : (
+                          <UserCheck className="mr-1 h-3 w-3" />
+                        )}
+                        {formatStatus(user)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserTableActions userId={user.id} userName={user.name} userEmail={user.email} onActionSuccess={fetchUsers} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Total de {users.length} usuários.
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Linhas por página</p>
+                <Select
+                  value={`${rowsPerPage}`}
+                  onValueChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue placeholder={`${rowsPerPage}`} />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[5, 10, 20, 50].map((pageSize) => (
+                      <SelectItem key={pageSize} value={`${pageSize}`}>
+                        {pageSize}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                Página {currentPage} de {totalPages}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <span className="sr-only">Go to previous page</span>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                >
+                  <span className="sr-only">Go to next page</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

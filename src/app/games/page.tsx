@@ -1,9 +1,6 @@
 
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
-import { getGameList, type Game } from '@/services/game';
 import {
   Card,
   CardHeader,
@@ -13,55 +10,21 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Gamepad2, Loader2 } from 'lucide-react';
-import * as React from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Gamepad2 } from 'lucide-react';
+import type { Metadata } from 'next';
+import { ApiClient, type Game } from '@/lib/apiClient';
 
-export default function GamesPage() {
-  const [games, setGames] = React.useState<Game[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [fetchError, setFetchError] = React.useState<string | null>(null);
+export const metadata: Metadata = {
+  title: 'Jogos Disponíveis',
+  description: 'Explore todos os jogos de RPG de mesa suportados pelo TableSheet.',
+};
 
-  React.useEffect(() => {
-    async function fetchGames() {
-      setIsLoading(true);
-      setFetchError(null);
-      try {
-        const allGames = await getGameList();
-        setGames(allGames ? allGames.filter((game) => game.is_active) : []);
-      } catch (error: any) {
-        console.error('Failed to fetch games:', error);
-        setGames([]);
-        setFetchError(
-          error.message ||
-            'Ocorreu um erro inesperado. Detalhes: Erro desconhecido'
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchGames();
-  }, []);
-
-  React.useEffect(() => {
-    document.title = 'Jogos - TableSheet';
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-primary">
-            Jogos Disponíveis
-          </h1>
-        </div>
-        <div className="flex min-h-[200px] items-center justify-center">
-          <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
-          <span>Carregando jogos...</span>
-        </div>
-      </div>
-    );
-  }
+export default async function GamesPage() {
+  const apiClient = new ApiClient();
+  const response = await apiClient.getGameList();
+  const games: Game[] = response.data.filter(
+    (game) => game.is_active && !game.deleted_at
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -71,17 +34,7 @@ export default function GamesPage() {
         </h1>
       </div>
 
-      {fetchError && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Erro ao Carregar Jogos</AlertTitle>
-          <AlertDescription>
-            {`Não foi possível buscar a lista de jogos. Por favor, tente novamente mais tarde. Detalhes: ${fetchError}`}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {!fetchError && games.length === 0 ? (
+      {games.length === 0 ? (
         <Card className="py-12 text-center">
           <CardHeader>
             <Gamepad2 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -93,13 +46,13 @@ export default function GamesPage() {
             </CardDescription>
           </CardContent>
         </Card>
-      ) : !fetchError && games.length > 0 ? (
+      ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {games.map((game) => (
             <GameCard key={game.id} game={game} />
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

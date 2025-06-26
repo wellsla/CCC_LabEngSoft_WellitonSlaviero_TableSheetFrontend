@@ -16,23 +16,19 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   ArrowLeft,
-  User,
   Edit,
-  Shield,
-  Zap,
   FileText,
   CheckCircle,
   XCircle,
-  Loader2,
   Heart,
   Dumbbell,
   Swords,
   BookUser,
   Image as ImageIcon,
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation'; 
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
+import { useParams } from 'next/navigation';
+import { useToast } from '@/hooks/useToast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface DetailItemProps {
   label: string;
@@ -50,8 +46,67 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, children }) => {
   );
 };
 
+function CharacterDetailsSkeleton() {
+  return (
+    <div className="container mx-auto animate-pulse space-y-6 px-4 py-8">
+      <Skeleton className="h-9 w-48" />
+      <Card>
+        <CardHeader className="border-b">
+          <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-16 w-16 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-24 rounded-full" />
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
+            <div className="md:col-span-1 space-y-4">
+              <Card>
+                <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-5/6" />
+                  <Skeleton className="h-5 w-full" />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-3">
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                </CardContent>
+              </Card>
+            </div>
+            <div className="md:col-span-2 space-y-4">
+              <Card>
+                <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end border-t pt-4">
+          <Skeleton className="h-10 w-44" />
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+
 export default function CharacterDetailsPage() {
-  const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   const characterId = params.characterId as string;
@@ -72,17 +127,14 @@ export default function CharacterDetailsPage() {
             description: `Não foi possível encontrar um personagem com o ID: ${characterId}`,
             variant: 'destructive',
           });
-          router.replace('/characters');
         }
       } catch (error: any) {
-        console.error('Failed to fetch character details:', error);
         const errorDescription = `Falha ao carregar detalhes: ${error.message || 'Erro desconhecido'}`;
         toast({
           title: 'Erro',
           description: errorDescription,
           variant: 'destructive',
         });
-        router.replace('/characters');
       } finally {
         setIsLoading(false);
       }
@@ -91,7 +143,7 @@ export default function CharacterDetailsPage() {
     if (characterId) {
       fetchCharacter();
     }
-  }, [characterId, router, toast]);
+  }, [characterId, toast]);
 
   React.useEffect(() => {
     if (character?.name) {
@@ -103,12 +155,7 @@ export default function CharacterDetailsPage() {
 
 
   if (isLoading) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Carregando detalhes do personagem...</p>
-      </div>
-    );
+    return <CharacterDetailsSkeleton />;
   }
 
   if (!character) {
@@ -137,17 +184,17 @@ export default function CharacterDetailsPage() {
         <CardHeader className="border-b">
           <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-4">
-               {character.portrait_url ? (
+              {character.portrait_url ? (
                 <Image src={character.portrait_url} alt={character.name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
                 </div>
               )}
               <div>
                 <CardTitle className="text-3xl">{character.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Nível {character.level} {character.race_id} {character.class_id}
+                  Nível {character.level} {character.race?.name || '...'} {character.class?.name || '...'}
                 </p>
               </div>
             </div>
@@ -171,10 +218,10 @@ export default function CharacterDetailsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
-                   <DetailItem label="Pontos de Vida">
+                  <DetailItem label="Pontos de Vida">
                      <span className="flex items-center gap-1">
-                        <Heart className="h-4 w-4 text-red-500" /> 
-                        {character.current_hit_points ?? 'N/A'} / {character.max_hit_points ?? 'N/A'}
+                        <Heart className="h-4 w-4 text-red-500" />
+                       {character.current_hit_points ?? 'N/A'} / {character.max_hit_points ?? 'N/A'}
                      </span>
                   </DetailItem>
                   <DetailItem
@@ -195,7 +242,7 @@ export default function CharacterDetailsPage() {
                     <Dumbbell className="mr-2 h-5 w-5 text-accent" /> Habilidades
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <CardContent className="space-y-1 text-sm">
                   <DetailItem label="Força" value={character.strength} />
                   <DetailItem label="Destreza" value={character.dexterity} />
                   <DetailItem

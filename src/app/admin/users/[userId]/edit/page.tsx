@@ -1,7 +1,8 @@
+
 'use client';
 
 import * as React from 'react';
-import { getUserDetailsById, type UserProfile } from '@/services/userProfile';
+import { adminGetUser, type UserProfile } from '@/services/userProfile';
 import { UserForm } from '../../user-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -14,7 +15,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { useParams, useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 
 export default function EditUserPage() {
   const { userId } = useParams<{ userId: string }>();
@@ -29,7 +30,7 @@ export default function EditUserPage() {
       if (!userId) return;
       setIsLoading(true);
       try {
-        const fetchedUser = await getUserDetailsById(userId);
+        const fetchedUser = await adminGetUser(userId);
         if (fetchedUser) {
           setUser(fetchedUser);
         } else {
@@ -37,7 +38,7 @@ export default function EditUserPage() {
           router.replace('/admin/users');
         }
       } catch (error: any) {
-        const errorDescription = `Falha ao carregar o usuário: ${error.message || 'Erro desconhecido'}`;
+        const errorDescription = `Falha ao carregar o usuário: ${error.message || 'Erro inesperado'}`;
         toast({ title: 'Erro', description: errorDescription, variant: 'destructive' });
         router.replace('/admin/users');
       } finally {
@@ -66,7 +67,7 @@ export default function EditUserPage() {
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-          <p>Carregando...</p>
+        <p>Carregando...</p>
       </div>
     );
   }

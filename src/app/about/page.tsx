@@ -11,36 +11,95 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
+import logoText from '../../../public/images/LogoTextSemFundo.png';
+import firstImage from '../../../public/images/About7.png';
+import secondImage from '../../../public/images/About8.png';
 import Link from 'next/link';
 import { BookOpen, Users, Gamepad2 } from 'lucide-react';
-import { getUserProfile } from '@/services/userProfile'; // Used for conditional link
+import { useAuth } from '@/hooks/useAuth';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function AboutPageSkeleton() {
+  return (
+    <div className="container mx-auto animate-pulse space-y-12 px-4 py-12">
+      <section className="text-center">
+        <Skeleton className="mx-auto h-24 w-24 rounded-full" />
+        <Skeleton className="mx-auto mt-4 h-10 w-3/4 max-w-lg" />
+        <div className="mx-auto mt-6 max-w-2xl space-y-2">
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-5/6" />
+        </div>
+      </section>
+
+      <section className="grid items-center gap-8 md:grid-cols-2">
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-1/2" />
+        </div>
+        <Skeleton className="aspect-video h-auto w-full rounded-lg" />
+      </section>
+
+      <section className="space-y-8">
+        <Skeleton className="mx-auto h-8 w-1/2 max-w-sm" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <Skeleton className="mx-auto h-12 w-12 rounded-full" />
+              <Skeleton className="mx-auto mt-4 h-6 w-3/4" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-5/6" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="mx-auto h-12 w-12 rounded-full" />
+              <Skeleton className="mx-auto mt-4 h-6 w-3/4" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-5/6" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="mx-auto h-12 w-12 rounded-full" />
+              <Skeleton className="mx-auto mt-4 h-6 w-3/4" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-5/6" />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export default function AboutPage() {
-  const [isLoggedIn, setIsLoggedIn] = React.useState<boolean | null>(null);
-
-  React.useEffect(() => {
-    const user = getUserProfile();
-    setIsLoggedIn(!!user);
-  }, []);
+  const { user, isLoading } = useAuth();
+  const isLoggedIn = !!user;
 
   React.useEffect(() => {
     document.title = 'Sobre o TableSheet - Seu Companheiro de RPG';
   }, []);
 
-  if (isLoggedIn === null) {
-    return <div className="container mx-auto space-y-12 px-4 py-12">Carregando...</div>;
+  if (isLoading) {
+    return <AboutPageSkeleton />;
   }
 
   return (
     <div className="container mx-auto space-y-12 px-4 py-12">
       <section className="text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+        <div className="mx-auto mb-2 flex h-40 w-40 items-center justify-center">
           <Image
-            src="https://placehold.co/64x64.png"
-            width={64}
-            height={64}
+            src={logoText}
             alt="TableSheet Logo"
-            className="h-16 w-16 object-contain"
+            className="object-contain"
             data-ai-hint="logo placeholder"
           />
         </div>
@@ -66,10 +125,8 @@ export default function AboutPage() {
         </div>
         <div className="overflow-hidden rounded-lg shadow-xl">
           <Image
-            src="https://placehold.co/600x400.png"
+            src={firstImage}
             alt="Cena de aventura de fantasia com personagens diversos"
-            width={600}
-            height={400}
             className="h-auto w-full object-cover"
             data-ai-hint="fantasy adventure"
           />
@@ -99,18 +156,16 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="grid items-center gap-8 md:grid-cols-2">
-        <div className="order-first overflow-hidden rounded-lg shadow-xl md:order-last">
+      <section className="grid items-center gap-12 md:grid-cols-5">
+        <div className="order-first overflow-hidden rounded-lg shadow-xl md:col-span-3 md:order-last">
           <Image
-            src="https://placehold.co/600x400.png"
+            src={secondImage}
             alt="Exemplo de interface de ficha de personagem digital"
-            width={600}
-            height={400}
             className="h-auto w-full object-cover"
             data-ai-hint="character sheet"
           />
         </div>
-        <div>
+        <div className="md:col-span-2">
           <h2 className="mb-4 text-3xl font-semibold text-primary">
             Nossa Missão
           </h2>

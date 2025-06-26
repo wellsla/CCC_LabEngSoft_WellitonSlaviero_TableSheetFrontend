@@ -6,9 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getCharacterList, type Character } from '@/services/character';
 import { getGameList, type Game } from '@/services/game';
-import { getUserProfile, type UserProfile as UserProfileType } from '@/services/userProfile';
 import { deleteCharacterAction } from './actions';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -60,11 +59,51 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { generateCharacterPdf } from '@/lib/pdfGenerator';
+import { useAuth } from '@/hooks/useAuth';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getAuthToken } from '@/lib/tokenManager';
+
+function CharacterCardSkeleton() {
+  return (
+    <Card className="flex h-full flex-col">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-1 items-start gap-3">
+            <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+            <div className="w-full flex-1 space-y-2">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/4" />
+            </div>
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-grow flex-col pt-0 pb-4">
+        <div className="flex-grow space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t pt-3">
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+      </CardContent>
+      <CardFooter className="flex items-center justify-between border-t pt-4">
+        <Skeleton className="h-5 w-24" />
+        <div className="flex gap-1">
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
 
 export default function CharactersPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [user, setUser] = React.useState<UserProfileType | null>(null);
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [characters, setCharacters] = React.useState<Character[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -72,39 +111,51 @@ export default function CharactersPage() {
     document.title = 'Meus Personagens - TableSheet';
   }, []);
 
-  React.useEffect(() => {
-    const currentUser = getUserProfile();
-    if (!currentUser) {
-      router.push('/auth/login?message=Por+favor,+faça+login+para+ver+seus+personagens');
-    } else {
-      setUser(currentUser);
-      const fetchCharacters = async () => {
-        setIsLoading(true);
-        try {
-          const charList = await getCharacterList(currentUser.id);
-          setCharacters(charList);
-        } catch (error: any) {
-          console.error("Failed to fetch characters:", error);
-          const errorDescription = `Não foi possível carregar os personagens. Detalhes: ${error.message || 'Erro desconhecido'}`;
-          toast({ title: 'Erro', description: errorDescription, variant: "destructive" });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchCharacters();
+  const fetchCharacters = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const charList = await getCharacterList();
+      setCharacters(charList);
+    } catch (error: any) {
+      const errorDescription = `Não foi possível carregar os personagens. Detalhes: ${
+        error.message || 'Erro desconhecido'
+      }`;
+      toast({
+        title: 'Erro',
+        description: errorDescription,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }, [router, toast]);
+  }, [toast]);
+
+  React.useEffect(() => {
+    if (isAuthLoading) return;
+
+    if (!user) {
+      router.push(
+        '/auth/login?message=Por+favor,+faça+login+para+ver+seus+personagens'
+      );
+      return;
+    }
+
+    fetchCharacters();
+  }, [user, isAuthLoading, router, fetchCharacters]);
 
   const handleDelete = async (characterId: string, characterName: string) => {
-    const result = await deleteCharacterAction(characterId); 
+    const token = getAuthToken();
+    const result = await deleteCharacterAction(characterId, token);
     if (result.success) {
       toast({
         title: 'Personagem Excluído',
-        description: `"${characterName}" foi excluído com sucesso.`,
+        description:
+          result.rawMessage || `"${characterName}" foi excluído com sucesso.`,
       });
-      setCharacters(prev => prev.filter(c => c.id !== characterId));
+      fetchCharacters();
     } else {
-      const errorDescription = result.rawMessage || 'Ocorreu um erro inesperado.';
+      const errorDescription =
+        result.rawMessage || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Falha na Exclusão',
         description: `Não foi possível excluir "${characterName}". Detalhes: ${errorDescription}`,
@@ -113,23 +164,21 @@ export default function CharactersPage() {
     }
   };
 
-
-  if (isLoading && !user) {
+  if (isLoading || isAuthLoading) {
     return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="container mx-auto animate-pulse px-4 py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-10 w-48 rounded-md" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <CharacterCardSkeleton />
+          <CharacterCardSkeleton />
+          <CharacterCardSkeleton />
+        </div>
       </div>
     );
   }
-
-  if (!user && !isLoading) {
-    return (
-      <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
-        <p>Redirecionando para o login...</p>
-      </div>
-    );
-  }
-
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -138,12 +187,7 @@ export default function CharactersPage() {
         <SelectGameDialog />
       </div>
 
-      {isLoading && characters.length === 0 ? (
-         <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-2 text-muted-foreground">Carregando personagens...</p>
-         </div>
-      ) : !isLoading && characters.length === 0 ? (
+      {!isLoading && characters.length === 0 ? (
         <Card className="py-12 text-center">
           <CardHeader>
             <User className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -177,29 +221,31 @@ function SelectGameDialog() {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = React.useState(false);
   const [games, setGames] = React.useState<Game[]>([]);
-  const [selectedGameId, setSelectedGameId] = React.useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = React.useState<string | null>(
+    null
+  );
   const [isLoading, setIsLoading] = React.useState(false);
-  
+
   const handleOpenChange = (open: boolean) => {
     if (open) {
       setIsLoading(true);
       getGameList()
-        .then(gameList => {
-          setGames(gameList.filter(g => g.is_active));
+        .then((gameList) => {
+          setGames(gameList.filter((g) => g.is_active));
           setIsLoading(false);
         })
         .catch(() => {
-            toast({
-              title: "Erro ao Carregar Jogos",
-              description: "Não foi possível buscar a lista de jogos disponíveis.",
-              variant: "destructive",
-            });
-            setIsLoading(false);
+          toast({
+            title: 'Erro ao Carregar Jogos',
+            description: 'Não foi possível buscar a lista de jogos disponíveis.',
+            variant: 'destructive',
+          });
+          setIsLoading(false);
         });
     }
     setIsOpen(open);
   };
-  
+
   const handleContinue = () => {
     if (selectedGameId) {
       router.push(`/characters/new?gameId=${selectedGameId}`);
@@ -218,29 +264,37 @@ function SelectGameDialog() {
         <DialogHeader>
           <DialogTitle>Selecione o Jogo</DialogTitle>
           <DialogDescription>
-            Escolha o sistema de RPG para o qual você quer criar uma nova ficha de personagem.
+            Escolha o sistema de RPG para o qual você quer criar uma nova ficha
+            de personagem.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-10">
+            <div className="flex h-10 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            <Select onValueChange={setSelectedGameId} value={selectedGameId || ''}>
+            <Select
+              onValueChange={setSelectedGameId}
+              value={selectedGameId || ''}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione um jogo..." />
               </SelectTrigger>
               <SelectContent>
-                {games.map(game => (
-                  <SelectItem key={game.id} value={game.id}>{game.name}</SelectItem>
+                {games.map((game) => (
+                  <SelectItem key={game.id} value={String(game.id)}>
+                    {game.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancelar</Button>
+          <Button variant="ghost" onClick={() => setIsOpen(false)}>
+            Cancelar
+          </Button>
           <Button onClick={handleContinue} disabled={!selectedGameId}>
             Continuar
           </Button>
@@ -249,7 +303,6 @@ function SelectGameDialog() {
     </Dialog>
   );
 }
-
 
 interface CharacterCardProps {
   character: Character;
@@ -265,11 +318,10 @@ function CharacterCard({ character, onDelete }: CharacterCardProps) {
     try {
       await generateCharacterPdf(character);
     } catch (error) {
-      console.error("Failed to generate PDF", error);
       toast({
-        title: "Erro ao Gerar PDF",
-        description: "Não foi possível criar o arquivo PDF. Tente novamente.",
-        variant: "destructive",
+        title: 'Erro ao Gerar PDF',
+        description: 'Não foi possível criar o arquivo PDF. Tente novamente.',
+        variant: 'destructive',
       });
     } finally {
       setIsDownloading(false);
@@ -381,7 +433,8 @@ function CharacterCard({ character, onDelete }: CharacterCardProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tem certeza que deseja excluir o personagem "{character.name}"? Esta ação não pode ser desfeita.
+                  Tem certeza que deseja excluir o personagem "{character.name}
+                  "? Esta ação não pode ser desfeita.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -25,7 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { Loader2 } from 'lucide-react';
 import { requestPasswordResetAction } from '@/app/auth/actions';
 
@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
   React.useEffect(() => {
     document.title = 'Esqueci Minha Senha - TableSheet';
   }, []);
-  
+
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordFormSchema),
     defaultValues: {
@@ -73,7 +73,6 @@ export default function ForgotPasswordPage() {
         });
       }
     } catch (error) {
-      console.error('Password reset error:', error);
       const displayMessage = `Ocorreu um erro inesperado: ${(error as Error).message || 'Erro desconhecido'}`;
       toast({
         title: 'Falha na Solicitação',
