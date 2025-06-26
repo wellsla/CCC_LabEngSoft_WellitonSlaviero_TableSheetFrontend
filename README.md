@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TableSheet - Frontend para Gerenciamento de Fichas de RPG
 
-## Getting Started
+Este é um projeto [Next.js](https://nextjs.org) inicializado com [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app), desenvolvido para gerenciar fichas de personagens de RPG de mesa.
 
-First, run the development server:
+## Sobre o Projeto
+
+TableSheet é uma aplicação web moderna para criação, gerenciamento e compartilhamento de fichas de personagens de RPG. A aplicação permite aos usuários:
+
+- Criar e gerenciar personagens de RPG
+- Acessar regras e livros de regras
+- Participar de jogos
+- Gerenciar perfis de usuário
+- Gerar PDFs de fichas de personagens
+- Administrar conteúdo (para administradores)
+
+## Tecnologias Utilizadas
+
+- **Frontend**: Next.js 15, React 18
+- **Estilização**: TailwindCSS
+- **Backend/Database**: Firebase
+- **Autenticação**: Firebase Auth
+- **Gerenciamento de Estado**: React Query
+- **Formulários**: React Hook Form, Zod
+- **Componentes UI**: Radix UI
+- **Geração de PDF**: jsPDF, React PDF
+- **Gráficos**: Recharts
+
+## Começando
+
+### Pré-requisitos
+
+- Node.js 18 ou superior
+- npm ou yarn
+
+### Instalação
+
+1. Clone o repositório
+2. Instale as dependências:
+
+```bash
+npm install
+# ou
+yarn install
+# ou
+pnpm install
+# ou
+bun install
+```
+
+3. Configure as variáveis de ambiente:
+   - Copie o arquivo `.env.example` para `.env.local`
+   - Preencha as variáveis necessárias com suas credenciais do Firebase
+
+### Executando o Servidor de Desenvolvimento
 
 ```bash
 npm run dev
-# or
+# ou
 yarn dev
-# or
+# ou
 pnpm dev
-# or
+# ou
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000) no seu navegador para ver o resultado.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estrutura do Projeto
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/                  # Rotas e páginas da aplicação
+│   ├── about/            # Página sobre a aplicação
+│   ├── admin/            # Painel de administração
+│   ├── auth/             # Autenticação
+│   ├── characters/       # Gerenciamento de personagens
+│   ├── games/            # Gerenciamento de jogos
+│   ├── profile/          # Perfil do usuário
+│   └── rulebooks/        # Livros de regras
+├── components/           # Componentes reutilizáveis
+├── contexts/             # Contextos React
+├── hooks/                # Hooks personalizados
+├── lib/                  # Utilitários e configurações
+└── services/             # Serviços para comunicação com APIs
+```
 
-## Learn More
+## Scripts Disponíveis
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` - Inicia o servidor de desenvolvimento com Turbopack
+- `npm run build` - Constrói a aplicação para produção
+- `npm run start` - Inicia o servidor de produção
+- `npm run lint` - Executa o linter
+- `npm run lint:fix` - Corrige problemas de linting
+- `npm run format` - Formata o código com Prettier
+- `npm run typecheck` - Verifica tipos TypeScript
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Saiba Mais
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para aprender mais sobre Next.js, consulte os seguintes recursos:
 
-## Deploy on Vercel
+- [Documentação do Next.js](https://nextjs.org/docs) - aprenda sobre os recursos e API do Next.js.
+- [Aprenda Next.js](https://nextjs.org/learn) - um tutorial interativo de Next.js.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Implantação
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A maneira mais fácil de implantar seu aplicativo Next.js é usar a [Plataforma Vercel](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) dos criadores do Next.js.
+
+Consulte a [documentação de implantação do Next.js](https://nextjs.org/docs/app/building-your-application/deploying) para mais detalhes.

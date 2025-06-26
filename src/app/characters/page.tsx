@@ -3,11 +3,13 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  getCharacterList,
-  type Character,
-  getAuthTokenFromLocalStorage,
-} from '@/services/character';
+import { useRouter } from 'next/navigation';
+import { getCharacterList, type Character } from '@/services/character';
+import { getGameList, type Game } from '@/services/game';
+import { getUserProfile, type UserProfile as UserProfileType } from '@/services/userProfile';
+import { deleteCharacterAction } from './actions';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardHeader,
@@ -16,10 +18,22 @@ import {
   CardContent,
   CardFooter,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { User, PlusCircle, Edit, Trash2, Shield, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { getUserProfile, type UserProfile as UserProfileType } from '@/services/userProfile';
-import { useRouter } from 'next/navigation';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +46,20 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { deleteCharacterAction } from './actions';
+import {
+  User,
+  PlusCircle,
+  Edit,
+  Trash2,
+  Shield,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ImageIcon,
+  FileDown,
+} from 'lucide-react';
+import Image from 'next/image';
+import { generateCharacterPdf } from '@/lib/pdfGenerator';
 
 export default function CharactersPage() {
   const router = useRouter();
@@ -49,20 +75,13 @@ export default function CharactersPage() {
   React.useEffect(() => {
     const currentUser = getUserProfile();
     if (!currentUser) {
-      router.push('/auth/login?message=Please+login+to+view+your+characters');
+      router.push('/auth/login?message=Por+favor,+faça+login+para+ver+seus+personagens');
     } else {
       setUser(currentUser);
       const fetchCharacters = async () => {
         setIsLoading(true);
-        const token = getAuthTokenFromLocalStorage();
-        if (!token) {
-          toast({ title: 'Erro', description: 'Falha na autenticação. Por favor, faça login novamente.', variant: "destructive" });
-          setIsLoading(false);
-          router.push('/auth/login');
-          return;
-        }
         try {
-          const charList = await getCharacterList(token);
+          const charList = await getCharacterList(currentUser.id);
           setCharacters(charList);
         } catch (error: any) {
           console.error("Failed to fetch characters:", error);
@@ -77,13 +96,7 @@ export default function CharactersPage() {
   }, [router, toast]);
 
   const handleDelete = async (characterId: string, characterName: string) => {
-    const token = getAuthTokenFromLocalStorage();
-    if (!token) {
-      toast({ title: 'Erro', description: 'Falha na autenticação. Por favor, faça login novamente.', variant: "destructive" });
-      router.push('/auth/login');
-      return;
-    }
-    const result = await deleteCharacterAction(characterId, token); 
+    const result = await deleteCharacterAction(characterId); 
     if (result.success) {
       toast({
         title: 'Personagem Excluído',
@@ -122,12 +135,7 @@ export default function CharactersPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold text-primary">Meus Personagens</h1>
-        <Button asChild>
-          <Link href="/characters/new">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Criar Novo Personagem
-          </Link>
-        </Button>
+        <SelectGameDialog />
       </div>
 
       {isLoading && characters.length === 0 ? (
@@ -144,9 +152,9 @@ export default function CharactersPage() {
             <p className="text-lg text-muted-foreground">
               Você ainda não criou nenhum personagem.
             </p>
-            <Button asChild className="mt-4">
-              <Link href="/characters/new">Crie seu primeiro personagem</Link>
-            </Button>
+            <div className="mt-4">
+              <SelectGameDialog />
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -164,51 +172,187 @@ export default function CharactersPage() {
   );
 }
 
+function SelectGameDialog() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [games, setGames] = React.useState<Game[]>([]);
+  const [selectedGameId, setSelectedGameId] = React.useState<string | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      setIsLoading(true);
+      getGameList()
+        .then(gameList => {
+          setGames(gameList.filter(g => g.is_active));
+          setIsLoading(false);
+        })
+        .catch(() => {
+            toast({
+              title: "Erro ao Carregar Jogos",
+              description: "Não foi possível buscar a lista de jogos disponíveis.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+        });
+    }
+    setIsOpen(open);
+  };
+  
+  const handleContinue = () => {
+    if (selectedGameId) {
+      router.push(`/characters/new?gameId=${selectedGameId}`);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Criar Novo Personagem
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Selecione o Jogo</DialogTitle>
+          <DialogDescription>
+            Escolha o sistema de RPG para o qual você quer criar uma nova ficha de personagem.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-10">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <Select onValueChange={setSelectedGameId} value={selectedGameId || ''}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um jogo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {games.map(game => (
+                  <SelectItem key={game.id} value={game.id}>{game.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancelar</Button>
+          <Button onClick={handleContinue} disabled={!selectedGameId}>
+            Continuar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 interface CharacterCardProps {
   character: Character;
   onDelete: () => void;
 }
 
 function CharacterCard({ character, onDelete }: CharacterCardProps) {
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const { toast } = useToast();
+
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      await generateCharacterPdf(character);
+    } catch (error) {
+      console.error("Failed to generate PDF", error);
+      toast({
+        title: "Erro ao Gerar PDF",
+        description: "Não foi possível criar o arquivo PDF. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <Card className="flex h-full flex-col shadow-md transition-shadow duration-200 hover:shadow-lg">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-            <User className="h-6 w-6 flex-shrink-0 text-accent" />
-            <CardTitle className="text-xl">{character.name}</CardTitle>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-1 items-start gap-3">
+            {character.portrait_url ? (
+              <Image
+                src={character.portrait_url}
+                alt={character.name}
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+              </div>
+            )}
+            <div className="flex-1">
+              <CardTitle className="text-xl">{character.name}</CardTitle>
+              <p className="mt-1 text-sm font-medium text-accent">
+                Nível {character.level || 1}
+              </p>
             </div>
-            <Badge variant={character.is_active ? 'secondary' : 'outline'} className="whitespace-nowrap">
-                {character.is_active ? <CheckCircle className="mr-1 h-3 w-3" /> : <XCircle className="mr-1 h-3 w-3" />}
-                {character.is_active ? 'Ativo' : 'Inativo'}
-            </Badge>
+          </div>
+          <Badge
+            variant={character.is_active ? 'secondary' : 'outline'}
+            className="shrink-0"
+          >
+            {character.is_active ? (
+              <CheckCircle className="mr-1 h-3 w-3" />
+            ) : (
+              <XCircle className="mr-1 h-3 w-3" />
+            )}
+            {character.is_active ? 'Ativo' : 'Inativo'}
+          </Badge>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Nvl {character.level || 1} {character.race_id || 'Raça'} {character.class_id || 'Classe'}
-        </p>
-        <CardDescription className="mt-2 min-h-[3rem] flex-grow line-clamp-3">
+      </CardHeader>
+      <CardContent className="flex flex-grow flex-col pt-0 pb-4">
+        <CardDescription className="min-h-[3rem] flex-grow line-clamp-3">
           {character.description || (
             <span className="italic text-muted-foreground/80">
               Sem descrição.
             </span>
           )}
         </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-grow">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-                <Shield className="h-4 w-4"/> CA: {character.armor_class ?? 'N/A'}
-            </div>
-            <div className="flex items-center gap-1">
-                PV: {character.current_hit_points ?? 'N/A'}/{character.max_hit_points ?? 'N/A'}
-            </div>
+        <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <Shield className="h-4 w-4" /> CA: {character.armor_class ?? 'N/A'}
+          </div>
+          <div className="flex items-center gap-1">
+            PV: {character.current_hit_points ?? 'N/A'}/
+            {character.max_hit_points ?? 'N/A'}
+          </div>
         </div>
       </CardContent>
       <CardFooter className="flex items-center justify-between border-t pt-4">
         <Button asChild variant="link" className="h-auto p-0 text-sm">
           <Link href={`/characters/${character.id}`}>Ver Detalhes</Link>
         </Button>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleDownloadPdf}
+            disabled={isDownloading}
+            title={`Baixar PDF de ${character.name}`}
+            aria-label={`Baixar PDF de ${character.name}`}
+          >
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
+          </Button>
+
           <Button
             asChild
             variant="ghost"
@@ -235,9 +379,9 @@ function CharacterCard({ character, onDelete }: CharacterCardProps) {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Esta ação não pode ser desfeita. Isso excluirá permanentemente "{character.name}".
+                  Tem certeza que deseja excluir o personagem "{character.name}"? Esta ação não pode ser desfeita.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -246,7 +390,7 @@ function CharacterCard({ character, onDelete }: CharacterCardProps) {
                   onClick={onDelete}
                   className="bg-destructive hover:bg-destructive/90"
                 >
-                  Sim, excluir personagem
+                  Confirmar Exclusão
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

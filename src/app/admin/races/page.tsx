@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { getGameRaceList, type GameRace, getAuthTokenFromLocalStorage } from '@/services/race';
+import { getGameRaceList, type GameRace } from '@/services/race';
 import { getGameList } from '@/services/game';
 import {
   Card,
@@ -39,7 +40,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { deleteGameRaceAction } from './actions';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 
 export default function AdminGameRacesPage() {
@@ -47,27 +47,18 @@ export default function AdminGameRacesPage() {
   const [gamesMap, setGamesMap] = React.useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
   const router = useRouter();
 
   React.useEffect(() => {
-    document.title = t('admin.races.page.documentTitle');
-  }, [t, currentLocale]);
+    document.title = 'Gerenciar Raças';
+  }, []);
 
   React.useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
-      const token = getAuthTokenFromLocalStorage();
-      if (!token) {
-        toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-        setIsLoading(false);
-        router.push('/auth/login');
-        return;
-      }
-
       try {
         const [racesList, allGames] = await Promise.all([
-          getGameRaceList(undefined, token),
+          getGameRaceList(),
           getGameList()
         ]);
         
@@ -79,35 +70,26 @@ export default function AdminGameRacesPage() {
 
       } catch (error: any) {
         console.error('Failed to fetch game races or games:', error);
-        toast({ title: t("general.error"), description: t("admin.races.page.toastErrorLoading", {details: error.message || 'Unknown error'}), variant: "destructive" });
+        toast({ title: "Erro", description: `Falha ao carregar dados: ${error.message || 'Erro desconhecido'}`, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
     fetchData();
-  }, [toast, t, router]);
+  }, [toast, router]);
 
   const handleDelete = async (raceId: string, raceName: string) => {
-    const token = getAuthTokenFromLocalStorage();
-    if (!token) {
-      toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-      router.push('/auth/login');
-      return;
-    }
-    const result = await deleteGameRaceAction(raceId, token);
+    const result = await deleteGameRaceAction(raceId);
     if (result.success) {
       toast({
-        title: t('admin.races.page.toastDeleteSuccessTitle'),
-        description: t('admin.races.page.toastDeleteSuccess', { name: raceName }),
+        title: 'Raça Excluída',
+        description: `A raça "${raceName}" foi excluída com sucesso.`,
       });
       setGameRaces(prev => prev.filter(gr => gr.id !== raceId));
     } else {
-      const errorDescription = result.messageKey
-        ? t(result.messageKey, { details: result.rawMessage || '' })
-        : result.rawMessage || t('general.unexpectedError');
       toast({
-        title: t('general.error'),
-        description: t('admin.races.page.toastDeleteError', { name: raceName, details: errorDescription }),
+        title: 'Erro na Exclusão',
+        description: result.rawMessage || 'Ocorreu um erro inesperado.',
         variant: 'destructive',
       });
     }
@@ -124,11 +106,11 @@ export default function AdminGameRacesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-primary">{t('admin.races.page.title')}</h1>
+        <h1 className="text-3xl font-bold text-primary">Gerenciar Raças de Jogo</h1>
         <Button asChild>
           <Link href="/admin/races/new">
             <PlusCircle className="mr-2 h-4 w-4" />
-            {t('admin.races.page.createButton')}
+            Adicionar Raça
           </Link>
         </Button>
       </div>
@@ -139,7 +121,7 @@ export default function AdminGameRacesPage() {
             <Palette className="mx-auto h-12 w-12 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-lg text-muted-foreground">{t('admin.races.page.noRaces')}</p>
+            <p className="text-lg text-muted-foreground">Nenhuma raça encontrada.</p>
           </CardContent>
         </Card>
       ) : (
@@ -147,10 +129,10 @@ export default function AdminGameRacesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('admin.races.table.name')}</TableHead>
-                <TableHead>{t('admin.races.table.game')}</TableHead>
-                <TableHead>{t('admin.races.table.description')}</TableHead>
-                <TableHead className="text-right">{t('general.actions')}</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Jogo Associado</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,15 +155,15 @@ export default function AdminGameRacesPage() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{t('admin.races.page.deleteConfirmTitle')}</AlertDialogTitle>
+                          <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
                           <AlertDialogDescription>
-                            {t('admin.races.page.deleteConfirmDescription', {name: gr.name})}
+                            Tem certeza que deseja excluir a raça "{gr.name}"?
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{t('general.cancel')}</AlertDialogCancel>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(gr.id, gr.name)} className="bg-destructive hover:bg-destructive/90">
-                            {t('general.delete')}
+                            Confirmar Exclusão
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: [
     'https://6000-idx-studio-1746289940083.cluster-etsqrqvqyvd4erxx7qq32imrjk.cloudworkstations.dev',
+    'https://9000-idx-studio-1746289940083.cluster-etsqrqvqyvd4erxx7qq32imrjk.cloudworkstations.dev',
   ],
 };
 

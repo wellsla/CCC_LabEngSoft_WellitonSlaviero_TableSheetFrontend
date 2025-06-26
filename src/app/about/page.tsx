@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import Link from 'next/link';
-import { BookOpen, Users, ShieldHalf, Gamepad2 } from 'lucide-react';
+import { BookOpen, Users, Gamepad2 } from 'lucide-react';
 import { getUserProfile } from '@/services/userProfile'; // Used for conditional link
 
 export default function AboutPage() {
@@ -34,7 +34,16 @@ export default function AboutPage() {
   return (
     <div className="container mx-auto space-y-12 px-4 py-12">
       <section className="text-center">
-        <ShieldHalf className="mx-auto mb-4 h-16 w-16 text-primary" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+          <Image
+            src="https://placehold.co/64x64.png"
+            width={64}
+            height={64}
+            alt="TableSheet Logo"
+            className="h-16 w-16 object-contain"
+            data-ai-hint="logo placeholder"
+          />
+        </div>
         <h1 className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">
           Sobre o TableSheet
         </h1>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -35,11 +34,7 @@ const profileFormSchema = z.object({
   email: z.string().email({
     message: 'Por favor, insira um endereço de e-mail válido.',
   }),
-  avatar_url: z
-    .string()
-    .url({ message: 'Por favor, insira uma URL válida.' })
-    .optional()
-    .or(z.literal('')),
+  avatar_url: z.string().optional(),
   birth_date: z
     .string()
     .optional()
@@ -75,13 +70,26 @@ export function ProfileForm({ user }: ProfileFormProps) {
     mode: 'onChange',
   });
 
-  const currentAvatarUrl = form.watch('avatar_url') || user.avatar_url;
+  const currentAvatarUrl = form.watch('avatar_url');
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        form.setValue('avatar_url', dataUrl, { shouldValidate: true, shouldDirty: true });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   async function onSubmit(data: ProfileFormValues) {
     setIsSubmitting(true);
     try {
       const payload: UpdateProfileData = {
         name: data.name,
+        email: data.email,
         avatar_url: data.avatar_url || undefined,
         birth_date: data.birth_date || undefined,
       };
@@ -128,29 +136,32 @@ export function ProfileForm({ user }: ProfileFormProps) {
           <FormField
             control={form.control}
             name="avatar_url"
-            render={({ field }) => (
-              <FormItem className="flex flex-col items-center gap-4 sm:flex-row sm:items-end">
-                <Avatar className="h-24 w-24 rounded-full ring-2 ring-primary ring-offset-2 ring-offset-background">
-                  <AvatarImage
-                    src={currentAvatarUrl ?? undefined}
-                    alt={user.name ?? 'User Avatar'}
-                    data-ai-hint={user.dataAiHint || 'user avatar'}
-                  />
-                  <AvatarFallback>
-                    <User className="h-12 w-12" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="w-full">
-                  <FormLabel>URL do Avatar</FormLabel>
+            render={() => (
+              <FormItem className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+                <div className="relative">
+                  <Avatar className="h-24 w-24 rounded-full ring-2 ring-primary ring-offset-2 ring-offset-background">
+                    <AvatarImage
+                      src={currentAvatarUrl ?? undefined}
+                      alt={user.name ?? 'User Avatar'}
+                      data-ai-hint={user.dataAiHint || 'user avatar'}
+                    />
+                    <AvatarFallback>
+                      <User className="h-12 w-12" />
+                    </AvatarFallback>
+                  </Avatar>
                   <FormControl>
                     <Input
-                      placeholder="https://exemplo.com/avatar.png"
-                      {...field}
-                      value={field.value ?? ''}
+                      type="file"
+                      className="absolute inset-0 h-full w-full cursor-pointer rounded-full opacity-0"
+                      accept="image/png, image/jpeg, image/webp"
+                      onChange={handleFileChange}
                     />
                   </FormControl>
+                </div>
+                <div className="text-center sm:text-left">
+                  <FormLabel>Avatar</FormLabel>
                   <FormDescription>
-                    Insira a URL da imagem do seu avatar.
+                    Clique na imagem para selecionar um novo avatar.
                   </FormDescription>
                   <FormMessage />
                 </div>
@@ -185,11 +196,10 @@ export function ProfileForm({ user }: ProfileFormProps) {
                     type="email"
                     placeholder="voce@exemplo.com"
                     {...field}
-                    readOnly
                   />
                 </FormControl>
                 <FormDescription>
-                  Seu endereço de e-mail. Contate o suporte para alterá-lo.
+                  Seu endereço de e-mail de login.
                 </FormDescription>
                 <FormMessage />
               </FormItem>

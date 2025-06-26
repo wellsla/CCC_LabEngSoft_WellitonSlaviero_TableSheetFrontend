@@ -2,11 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import {
-  getCharacterDetails,
-  type Character,
-  getAuthTokenFromLocalStorage, // Import getAuthTokenFromLocalStorage
-} from '@/services/character';
+import { getCharacterDetails, type Character } from '@/services/character';
 import {
   Card,
   CardHeader,
@@ -17,22 +13,26 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowLeft,
   User,
   Edit,
   Shield,
   Zap,
-  BookOpen,
   FileText,
   CheckCircle,
   XCircle,
   Loader2,
+  Heart,
+  Dumbbell,
+  Swords,
+  BookUser,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation'; 
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useTranslation } from '@/hooks/useTranslation';
 
 interface DetailItemProps {
   label: string;
@@ -55,43 +55,30 @@ export default function CharacterDetailsPage() {
   const params = useParams();
   const { toast } = useToast();
   const characterId = params.characterId as string;
-  const { t, currentLocale } = useTranslation();
 
   const [character, setCharacter] = React.useState<Character | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (characterId === 'new' || characterId === 'edit') {
-      router.replace('/characters');
-      return;
-    }
-
     async function fetchCharacter() {
       setIsLoading(true);
-      const token = getAuthTokenFromLocalStorage(); // Get token client-side
-      if (!token) {
-        toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-        setIsLoading(false);
-        router.push('/auth/login');
-        return;
-      }
       try {
-        const fetchedCharacter = await getCharacterDetails(characterId, token); // Pass token
+        const fetchedCharacter = await getCharacterDetails(characterId);
         if (fetchedCharacter) {
           setCharacter(fetchedCharacter);
         } else {
           toast({
-            title: t('characterDetail.toastNotFoundTitle'),
-            description: t('characterDetail.toastNotFoundDescription', {characterId}),
+            title: 'Personagem não encontrado',
+            description: `Não foi possível encontrar um personagem com o ID: ${characterId}`,
             variant: 'destructive',
           });
           router.replace('/characters');
         }
       } catch (error: any) {
         console.error('Failed to fetch character details:', error);
-        const errorDescription = t('characterDetail.toastErrorDescription', {details: error.message || 'Unknown error'});
+        const errorDescription = `Falha ao carregar detalhes: ${error.message || 'Erro desconhecido'}`;
         toast({
-          title: t('characterDetail.toastErrorTitle'),
+          title: 'Erro',
           description: errorDescription,
           variant: 'destructive',
         });
@@ -104,22 +91,22 @@ export default function CharacterDetailsPage() {
     if (characterId) {
       fetchCharacter();
     }
-  }, [characterId, router, toast, t]);
+  }, [characterId, router, toast]);
 
   React.useEffect(() => {
     if (character?.name) {
-      document.title = t('characterDetail.documentTitle', { name: character.name });
+      document.title = `${character.name} - Detalhes do Personagem`;
     } else if (!isLoading) {
-      document.title = t('characterDetail.documentTitle', { name: t('general.characterFallbackName') || 'Character' });
+      document.title = 'Detalhes do Personagem';
     }
-  }, [character, isLoading, t, currentLocale]);
+  }, [character, isLoading]);
 
 
   if (isLoading) {
     return (
       <div className="container mx-auto flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">{t('characterDetail.loading')}</p>
+        <p className="ml-4 text-muted-foreground">Carregando detalhes do personagem...</p>
       </div>
     );
   }
@@ -128,10 +115,10 @@ export default function CharacterDetailsPage() {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <p className="text-lg text-muted-foreground">
-          {t('characterDetail.notFound')}
+          Personagem não encontrado
         </p>
         <Button asChild className="mt-4">
-          <Link href="/characters">{t('characterDetail.backToCharacters')}</Link>
+          <Link href="/characters">Voltar para Personagens</Link>
         </Button>
       </div>
     );
@@ -142,19 +129,25 @@ export default function CharacterDetailsPage() {
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/characters">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          {t('characterDetail.backToCharacters')}
+          Voltar para Personagens
         </Link>
       </Button>
 
       <Card className="shadow-lg">
         <CardHeader className="border-b">
           <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              <User className="h-10 w-10 text-primary" />
+            <div className="flex items-center gap-4">
+               {character.portrait_url ? (
+                <Image src={character.portrait_url} alt={character.name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
               <div>
                 <CardTitle className="text-3xl">{character.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {character.race_id} {character.class_id}
+                  Nível {character.level} {character.race_id} {character.class_id}
                 </p>
               </div>
             </div>
@@ -164,38 +157,34 @@ export default function CharacterDetailsPage() {
               ) : (
                 <XCircle className="mr-1 h-3 w-3" />
               )}
-              {character.is_active ? t('characterDetail.statusActive') : t('characterDetail.statusInactive')}
-              {character.is_npc ? ` (${t('characterDetail.npcSuffix')})` : ''}
+              {character.is_active ? 'Ativo' : 'Inativo'}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-            <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
+            <div className="md:col-span-1 space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl">
-                    <Shield className="mr-2 h-5 w-5 text-accent" /> {t('characterDetail.combatStatsTitle')}
+                    <Swords className="mr-2 h-5 w-5 text-accent" /> Combate
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
-                  <DetailItem label={t('characterDetail.levelLabel')} value={character.level} />
-                  <DetailItem
-                    label={t('characterDetail.experienceLabel')}
-                    value={`${character.experience_points || 0} XP`}
-                  />
-                  <DetailItem label={t('characterDetail.hpLabel')}>
-                    {character.current_hit_points ?? 'N/A'} /{' '}
-                    {character.max_hit_points ?? 'N/A'}
+                   <DetailItem label="Pontos de Vida">
+                     <span className="flex items-center gap-1">
+                        <Heart className="h-4 w-4 text-red-500" /> 
+                        {character.current_hit_points ?? 'N/A'} / {character.max_hit_points ?? 'N/A'}
+                     </span>
                   </DetailItem>
                   <DetailItem
-                    label={t('characterDetail.acLabel')}
+                    label="Classe de Armadura"
                     value={character.armor_class}
                   />
-                  <DetailItem label={t('characterDetail.initiativeLabel')} value={character.initiative} />
+                  <DetailItem label="Iniciativa" value={character.initiative} />
                   <DetailItem
-                    label={t('characterDetail.speedLabel')}
-                    value={`${character.speed || 0} ft.`}
+                    label="Velocidade"
+                    value={`${character.speed || 0}m`}
                   />
                 </CardContent>
               </Card>
@@ -203,63 +192,47 @@ export default function CharacterDetailsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl">
-                    <BookOpen className="mr-2 h-5 w-5 text-accent" />{' '}
-                    {t('characterDetail.roleplayingInfoTitle')}
+                    <Dumbbell className="mr-2 h-5 w-5 text-accent" /> Habilidades
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <DetailItem label={t('characterDetail.gameIdLabel')} value={character.game_id} />
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <DetailItem label="Força" value={character.strength} />
+                  <DetailItem label="Destreza" value={character.dexterity} />
                   <DetailItem
-                    label={t('characterDetail.backgroundLabel')}
-                    value={character.background_id}
+                    label="Constituição"
+                    value={character.constitution}
                   />
                   <DetailItem
-                    label={t('characterDetail.alignmentLabel')}
-                    value={character.alignment_id}
+                    label="Inteligência"
+                    value={character.intelligence}
                   />
-                  {character.description && (
-                    <>
-                      <Separator className="my-2" />
-                      <h4 className="font-medium text-muted-foreground">
-                        {t('characterDetail.descriptionLabel')}
-                      </h4>
-                      <p className="whitespace-pre-wrap text-sm">
-                        {character.description}
-                      </p>
-                    </>
-                  )}
+                  <DetailItem label="Sabedoria" value={character.wisdom} />
+                  <DetailItem label="Carisma" value={character.charisma} />
                 </CardContent>
               </Card>
             </div>
 
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-xl">
-                    <Zap className="mr-2 h-5 w-5 text-accent" /> {t('characterDetail.abilityScoresTitle')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <DetailItem label={t('characterForm.strength')} value={character.strength} />
-                  <DetailItem label={t('characterForm.dexterity')} value={character.dexterity} />
-                  <DetailItem
-                    label={t('characterForm.constitution')}
-                    value={character.constitution}
-                  />
-                  <DetailItem
-                    label={t('characterForm.intelligence')}
-                    value={character.intelligence}
-                  />
-                  <DetailItem label={t('characterForm.wisdom')} value={character.wisdom} />
-                  <DetailItem label={t('characterForm.charisma')} value={character.charisma} />
-                </CardContent>
-              </Card>
+            <div className="md:col-span-2 space-y-4">
+              {character.description && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <BookUser className="mr-2 h-5 w-5 text-accent" /> Descrição
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {character.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
 
               {character.notes && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center text-xl">
-                      <FileText className="mr-2 h-5 w-5 text-accent" /> {t('characterDetail.notesTitle')}
+                      <FileText className="mr-2 h-5 w-5 text-accent" /> Notas
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -276,7 +249,7 @@ export default function CharacterDetailsPage() {
           <Button asChild>
             <Link href={`/characters/${character.id}/edit`}>
               <Edit className="mr-2 h-4 w-4" />
-              {t('characterDetail.editButton')}
+              Editar Personagem
             </Link>
           </Button>
         </CardFooter>

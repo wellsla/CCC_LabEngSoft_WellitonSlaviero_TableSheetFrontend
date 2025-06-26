@@ -22,14 +22,13 @@ export function ThemeToggleButton() {
   }, []);
 
   if (!mounted) {
-    // Render a placeholder or null until mounted to avoid hydration mismatch
-    // The size should match the actual button to prevent layout shifts
+    // Return null on the server and initial client render to avoid hydration mismatch.
+    // The button will appear on the client after mounting.
+    // A placeholder could also be used, but null is the safest option.
     return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 opacity-0"
-        disabled
+      <div
+        className="h-8 w-8"
+        style={{ width: '2rem', height: '2rem' }}
         aria-hidden="true"
       />
     );

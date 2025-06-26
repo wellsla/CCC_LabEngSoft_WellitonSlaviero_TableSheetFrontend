@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -14,19 +13,13 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
-interface EditUserPageProps {
-  params: { userId: string };
-}
-
-export default function EditUserPage({ params: routeParams }: EditUserPageProps) {
+export default function EditUserPage() {
   const { userId } = useParams<{ userId: string }>();
   const router = useRouter();
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
 
   const [user, setUser] = React.useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -40,27 +33,27 @@ export default function EditUserPage({ params: routeParams }: EditUserPageProps)
         if (fetchedUser) {
           setUser(fetchedUser);
         } else {
-          toast({ title: t('general.error'), description: t('admin.users.edit.toastNotFound'), variant: 'destructive' });
+          toast({ title: 'Erro', description: 'Usuário não encontrado.', variant: 'destructive' });
           router.replace('/admin/users');
         }
       } catch (error: any) {
-        const errorDescription = t('admin.users.edit.toastErrorLoading', {details: error.message || 'Unknown error'});
-        toast({ title: t('general.error'), description: errorDescription, variant: 'destructive' });
+        const errorDescription = `Falha ao carregar o usuário: ${error.message || 'Erro desconhecido'}`;
+        toast({ title: 'Erro', description: errorDescription, variant: 'destructive' });
         router.replace('/admin/users');
       } finally {
         setIsLoading(false);
       }
     }
     fetchUser();
-  }, [userId, router, toast, t]);
+  }, [userId, router, toast]);
 
   React.useEffect(() => {
     if (user?.name) {
-      document.title = t('admin.users.edit.documentTitle', { name: user.name });
+      document.title = `Editar Usuário: ${user.name}`;
     } else if (!isLoading){
-      document.title = t('admin.users.edit.documentTitle', { name: t('general.userFallbackName') || 'User' });
+      document.title = 'Editar Usuário';
     }
-  }, [user, isLoading, t, currentLocale]);
+  }, [user, isLoading]);
 
   if (isLoading) {
     return (
@@ -73,7 +66,7 @@ export default function EditUserPage({ params: routeParams }: EditUserPageProps)
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-          <p>{t('loading')}...</p>
+          <p>Carregando...</p>
       </div>
     );
   }
@@ -83,17 +76,17 @@ export default function EditUserPage({ params: routeParams }: EditUserPageProps)
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/admin/users">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          {t('admin.users.edit.backButton')}
+          Voltar para Usuários
         </Link>
       </Button>
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
             <UserCog className="h-6 w-6 text-primary" />
-            <CardTitle>{t('admin.users.edit.pageTitle', { name: user.name })}</CardTitle>
+            <CardTitle>Editar Usuário: {user.name}</CardTitle>
           </div>
           <CardDescription>
-            {t('admin.users.edit.pageDescription', { email: user.email })}
+            Editando o perfil para {user.email}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,4 +96,3 @@ export default function EditUserPage({ params: routeParams }: EditUserPageProps)
     </div>
   );
 }
-

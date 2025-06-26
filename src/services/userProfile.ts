@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -10,7 +9,9 @@ import {
   adminGetUserDetailsByIdApi,
   adminUpdateUserByIdApi,
   adminDeleteUserByIdApi,
-  API_BASE_URL,
+  // These are now mock functions
+  mockUsers as MOCK_USERS, 
+  mockPasswords as MOCK_PASSWORDS,
   type ProcessedError,
 } from '@/lib/apiClient';
 import type { AxiosError } from 'axios';
@@ -32,6 +33,7 @@ export interface UserProfile {
 
 export interface UpdateProfileData {
   name?: string;
+  email?: string;
   avatar_url?: string;
   birth_date?: string;
 }
@@ -52,132 +54,71 @@ interface UserProfileResponse extends ServiceResponse {
   user?: UserProfile;
 }
 
-export function getAuthTokenFromLocalStorage(): string | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  return localStorage.getItem('authToken');
-}
-
+// SIMULATION: Get user based on mock session
 export function getUserProfile(): UserProfile | null {
   if (typeof window === 'undefined') {
     return null;
   }
   try {
-    const token = localStorage.getItem('authToken');
-    const userDataString = localStorage.getItem('sessionUserData');
+    const userType = localStorage.getItem('mockUserType'); // 'admin' or 'player'
+    if (!userType) return null;
 
-    if (!token || !userDataString) {
-      return null;
+    if (userType === 'admin') {
+      return MOCK_USERS.find(u => u.is_admin) || null;
     }
-    const userData = JSON.parse(userDataString) as UserProfile;
-    return userData;
+    return MOCK_USERS.find(u => !u.is_admin) || null;
   } catch (error) {
-    console.error(
-      '[getUserProfile Client-Side] Error reading from localStorage:',
-      error
-    );
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('sessionUserData');
+    console.error('[getUserProfile Mock] Error reading from localStorage:', error);
     return null;
   }
 }
 
+// SIMULATION: "Verify" just means getting from local storage
 export async function verifyAndFetchUserProfile(): Promise<UserProfile | null> {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const token = localStorage.getItem('authToken');
-  if (!token) {
-    localStorage.removeItem('sessionUserData');
-    return null;
-  }
-
-  try {
-    const userFromApi = await getMeApi(token);
-
-    const userProfile: UserProfile = {
-      id: userFromApi.id,
-      username: userFromApi.username,
-      name: userFromApi.name,
-      email: userFromApi.email,
-      avatar_url: userFromApi.avatar_url,
-      is_admin: userFromApi.is_admin,
-      birth_date: userFromApi.birth_date,
-      is_suspended: userFromApi.is_suspended,
-      status: userFromApi.status,
-      created_at: userFromApi.created_at,
-      updated_at: userFromApi.updated_at,
-      dataAiHint:
-        userFromApi.dataAiHint ||
-        `${userFromApi.name?.split(' ')[0]?.toLowerCase() || 'user'} avatar`,
-    };
-
-    localStorage.setItem('sessionUserData', JSON.stringify(userProfile));
-    return userProfile;
-  } catch (error) {
-    const axiosError = error as AxiosError;
-    if (axiosError.isAxiosError && !axiosError.response) {
-      console.error(
-        `[verifyAndFetchUserProfile Client-Side] Network Error: Could not connect to the API server at ${API_BASE_URL} to verify token (endpoint: /me). Please ensure your API server is running, accessible, and CORS is configured if necessary. Also, check if the NEXT_PUBLIC_API_URL environment variable is correctly set. Original error:`,
-        error
-      );
-    } else {
-      console.error(
-        '[verifyAndFetchUserProfile Client-Side] API Error verifying token or fetching from /api/me:',
-        error
-      );
-    }
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('sessionUserData');
-    return null;
-  }
+  return getUserProfile();
 }
 
+// SIMULATION: Update the in-memory mock user
 async function updateUserProfileService(
   data: UpdateProfileData
 ): Promise<UserProfileResponse> {
-  if (typeof window === 'undefined') {
-    return {
-      success: false,
-      messageKey: 'general.unexpectedError',
-      rawMessage: 'Cannot update profile: client-side context not available.',
-    };
-  }
-  const authToken = localStorage.getItem('authToken');
-  if (!authToken) {
+  const currentUser = getUserProfile();
+  if (!currentUser) {
     return { success: false, messageKey: 'general.authenticationFailed' };
   }
 
   try {
-    const updatedUserFromApi = await updateUserProfileApi(data, authToken);
+    const userIndex = MOCK_USERS.findIndex(u => u.id === currentUser.id);
+    if (userIndex === -1) {
+      return { success: false, messageKey: 'general.notFound', rawMessage: "Usuário não encontrado no mock." };
+    }
+    
+    // Handle email change logic
+    if (data.email && data.email !== currentUser.email) {
+        // Check for uniqueness
+        if (MOCK_USERS.some(u => u.email === data.email && u.id !== currentUser.id)) {
+            return { success: false, rawMessage: 'Este endereço de e-mail já está em uso por outra conta.' };
+        }
+        // Update password key
+        const password = MOCK_PASSWORDS[currentUser.email];
+        if (password) {
+            delete MOCK_PASSWORDS[currentUser.email];
+            MOCK_PASSWORDS[data.email] = password;
+        }
+    }
 
-    const userDataForStorage: UserProfile = {
-      id: updatedUserFromApi.id,
-      username: updatedUserFromApi.username,
-      name: updatedUserFromApi.name,
-      email: updatedUserFromApi.email,
-      avatar_url: updatedUserFromApi.avatar_url,
-      is_admin: updatedUserFromApi.is_admin,
-      birth_date: updatedUserFromApi.birth_date,
-      is_suspended: updatedUserFromApi.is_suspended,
-      status: updatedUserFromApi.status,
-      created_at: updatedUserFromApi.created_at,
-      updated_at: updatedUserFromApi.updated_at,
-      dataAiHint:
-        updatedUserFromApi.dataAiHint ||
-        `${updatedUserFromApi.name?.split(' ')[0]?.toLowerCase() || 'user'} avatar`,
-    };
+    MOCK_USERS[userIndex] = { ...MOCK_USERS[userIndex], ...data, updated_at: new Date().toISOString() };
+    
+    const updatedUser = MOCK_USERS[userIndex];
+    localStorage.setItem('sessionUserData', JSON.stringify(updatedUser)); 
 
-    localStorage.setItem('sessionUserData', JSON.stringify(userDataForStorage));
     return {
       success: true,
-      user: userDataForStorage,
-      messageKey: 'profileForm.toastSuccessDescription', // Using description key for success message
+      user: updatedUser,
+      messageKey: 'profileForm.toastSuccessDescription',
     };
   } catch (error: unknown) {
-    console.error('[updateUserProfileService] Error updating profile:', error);
+    console.error('[updateUserProfileService] Error updating mock profile:', error);
     const processedError: ProcessedError = handleAxiosError(error);
     return { 
         success: false, 
@@ -188,36 +129,23 @@ async function updateUserProfileService(
   }
 }
 
+// SIMULATION: Change password in the mock password object
 async function changePasswordService(
   data: ChangePasswordData
 ): Promise<ServiceResponse> {
-  if (typeof window === 'undefined') {
-    return {
-      success: false,
-      messageKey: 'general.unexpectedError',
-      rawMessage: 'Cannot change password: client-side context not available.',
-    };
-  }
-  const authToken = localStorage.getItem('authToken');
-  if (!authToken) {
+  const currentUser = getUserProfile();
+  if (!currentUser) {
     return { success: false, messageKey: 'general.authenticationFailed' };
   }
 
   try {
-    await changePasswordApi(data, authToken);
+    if (MOCK_PASSWORDS[currentUser.email] !== data.currentPassword) {
+      throw new Error("A senha atual está incorreta.");
+    }
+    MOCK_PASSWORDS[currentUser.email] = data.newPassword;
     return { success: true, messageKey: 'changePasswordForm.toastSuccessDescription' };
   } catch (error: unknown) {
-    console.error('[changePasswordService] Error changing password:', error);
     const processedError: ProcessedError = handleAxiosError(error);
-    // Specific handling for 422 to provide better UX for password validation
-    if ((error as AxiosError).response?.status === 422) {
-      return {
-        success: false,
-        messageKey: 'changePasswordForm.toastFailValidationDescription',
-        rawMessage: processedError.rawMessage, // Keep raw for details if needed
-        errors: processedError.errors,
-      };
-    }
     return {
       success: false,
       messageKey: processedError.messageKey,
@@ -227,54 +155,26 @@ async function changePasswordService(
   }
 }
 
-// Admin-specific functions
+// --- Admin-specific functions (all use mock data now) ---
 export async function getAllUsers(): Promise<UserProfile[]> {
-  const token = localStorage.getItem('authToken');
   const user = getUserProfile();
-
-  if (!token || !user || !user.is_admin) {
-    console.error(
-      '[AdminService/getAllUsers] Unauthorized attempt: Admin access required and token must be present.'
-    );
-    throw new Error('general.permissionDenied'); // Throw key for client to translate
+  if (!user || !user.is_admin) {
+    throw new Error('Permissão negada.');
   }
-
-  try {
-    return await adminGetAllUsersApi(token);
-  } catch (error) {
-    console.error(
-      '[AdminService/getAllUsers] Error fetching users from API:',
-      error
-    );
-    const apiError = handleAxiosError(error);
-    throw new Error(apiError.rawMessage || 'Failed to fetch users'); // Throw raw message or a fallback
-  }
+  return adminGetAllUsersApi();
 }
 
 export async function getUserDetailsById(
   userId: string
 ): Promise<UserProfile | null> {
-  const token = localStorage.getItem('authToken');
-  const currentUser = getUserProfile();
-
-  if (!token || !currentUser || !currentUser.is_admin) {
-    console.error(
-      `[AdminService/getUserDetailsById for ${userId}] Unauthorized attempt: Admin access required and token must be present.`
-    );
-    throw new Error('general.permissionDenied');
+  const user = getUserProfile();
+  if (!user || !user.is_admin) {
+    throw new Error('Permissão negada.');
   }
   try {
-    return await adminGetUserDetailsByIdApi(userId, token);
+    return await adminGetUserDetailsByIdApi(userId);
   } catch (error) {
-    console.error(
-      `[AdminService/getUserDetailsById] Error fetching user ${userId} from API:`,
-      error
-    );
-    if ((error as AxiosError).response?.status === 404) {
-      return null;
-    }
-    const apiError = handleAxiosError(error);
-    throw new Error(apiError.rawMessage || `Failed to fetch user ${userId}`);
+    return null;
   }
 }
 
@@ -282,50 +182,27 @@ export async function updateUserById(
   userId: string,
   data: Partial<UserProfile>
 ): Promise<UserProfile | null> {
-  const token = localStorage.getItem('authToken');
-  const currentUser = getUserProfile();
-
-  if (!token || !currentUser || !currentUser.is_admin) {
-    console.error(
-      `[AdminService/updateUserById for ${userId}] Unauthorized attempt: Admin access required and token must be present.`
-    );
-    throw new Error('general.permissionDenied');
+   const user = getUserProfile();
+  if (!user || !user.is_admin) {
+    throw new Error('Permissão negada.');
   }
-
   try {
-    return await adminUpdateUserByIdApi(userId, data, token);
+    return await adminUpdateUserByIdApi(userId, data);
   } catch (error) {
-    console.error(
-      `[AdminService/updateUserById] Error updating user ${userId} via API:`,
-      error
-    );
-    const apiError = handleAxiosError(error);
-    throw new Error(apiError.rawMessage || `Failed to update user ${userId}`);
+     const apiError = handleAxiosError(error);
+    throw new Error(apiError.rawMessage);
   }
 }
 
 export async function deleteUserById(userId: string): Promise<ServiceResponse> {
-  const token = localStorage.getItem('authToken');
-  const currentUser = getUserProfile();
-
-  if (!token || !currentUser || !currentUser.is_admin) {
-    console.error(
-      `[AdminService/deleteUserById for ${userId}] Unauthorized attempt: Admin access required and token must be present.`
-    );
-    return {
-      success: false,
-      messageKey: 'general.permissionDenied',
-    };
+  const user = getUserProfile();
+  if (!user || !user.is_admin) {
+     return { success: false, messageKey: 'general.permissionDenied' };
   }
-
   try {
-    const apiResult =  await adminDeleteUserByIdApi(userId, token);
-    return { ...apiResult, messageKey: apiResult.message ? 'admin.users.page.toastDeleteSuccessDescription' : undefined, rawMessage: apiResult.message }; // Adapt if API returns message
+    const apiResult =  await adminDeleteUserByIdApi(userId);
+    return { ...apiResult, success: true, messageKey: 'admin.users.page.toastDeleteSuccessDescription' };
   } catch (error: any) {
-    console.error(
-      `[AdminService/deleteUserById] Error deleting user ${userId} via API:`,
-      error
-    );
     const apiError = handleAxiosError(error);
     return { success: false, messageKey: apiError.messageKey, rawMessage: apiError.rawMessage };
   }
@@ -333,3 +210,15 @@ export async function deleteUserById(userId: string): Promise<ServiceResponse> {
 
 export const updateUserProfile = updateUserProfileService;
 export const changePassword = changePasswordService;
+
+// This function is no longer needed with the mock setup, but kept for structural reference
+export function getAuthTokenFromLocalStorage(): string | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    // The "token" is now just the user type for mock auth
+    const userType = localStorage.getItem('mockUserType');
+    if (userType === 'admin') return 'mock-admin-token';
+    if (userType === 'player') return 'mock-player-token';
+    return null;
+}

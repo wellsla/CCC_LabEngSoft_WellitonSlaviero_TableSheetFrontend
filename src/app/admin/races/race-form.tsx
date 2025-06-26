@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -34,24 +35,17 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { GameRace } from '@/services/race';
-import { createGameRace, updateGameRace, getAuthTokenFromLocalStorage } from '@/services/race';
+import { createGameRace, updateGameRace } from '@/services/race';
 import { getGameList, type Game } from '@/services/game';
 import { Loader2 } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
 
-const createGameRaceFormSchema = (t: (key: string, params?: Record<string, string | number>) => string) => z.object({
-  name: z
-    .string()
-    .min(2, { message: t('general.minChars', { count: 2 }) })
-    .max(100, { message: t('general.maxChars', { count: 100 }) }),
-  description: z
-    .string()
-    .max(1000, { message: t('general.maxChars', { count: 1000 }) })
-    .optional(),
-  game_id: z.string().min(1, { message: t('admin.races.form.gameRequired')}),
+const gameRaceFormSchema = z.object({
+  name: z.string().min(2, { message: 'Mínimo de 2 caracteres.' }).max(100, { message: 'Máximo de 100 caracteres.' }),
+  description: z.string().max(1000, { message: 'Máximo de 1000 caracteres.' }).optional(),
+  game_id: z.string().min(1, { message: 'É obrigatório associar a um jogo.' }),
 });
 
-type GameRaceFormValues = z.infer<ReturnType<typeof createGameRaceFormSchema>>;
+type GameRaceFormValues = z.infer<typeof gameRaceFormSchema>;
 
 interface GameRaceFormProps {
   gameRace?: GameRace | null;
@@ -61,12 +55,9 @@ interface GameRaceFormProps {
 export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [games, setGames] = React.useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = React.useState(true);
-
-  const gameRaceFormSchema = React.useMemo(() => createGameRaceFormSchema(t), [t]);
 
   const form = useForm<GameRaceFormValues>({
     resolver: zodResolver(gameRaceFormSchema),
@@ -85,10 +76,9 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
         const gameList = await getGameList();
         setGames(gameList);
       } catch (error: any) {
-        console.error("Failed to fetch games for dropdown:", error);
         toast({
-          title: t('general.error'),
-          description: t('admin.races.form.toastErrorLoadingGames', { details: error.message || t('general.unexpectedError', {details: ''}) }),
+          title: 'Erro',
+          description: `Não foi possível carregar os jogos: ${error.message || 'Erro inesperado'}`,
           variant: 'destructive',
         });
       } finally {
@@ -96,22 +86,10 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
       }
     }
     fetchGames();
-  }, [toast, t]);
+  }, [toast]);
 
   async function onSubmit(data: GameRaceFormValues) {
     setIsSubmitting(true);
-    const token = getAuthTokenFromLocalStorage();
-    if (!token) {
-      toast({
-        title: t('general.error'),
-        description: t('general.authenticationFailed'),
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
-      router.push('/auth/login');
-      return;
-    }
-
     try {
       let result;
       const payload = {
@@ -120,50 +98,42 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
       };
 
       if (isEditMode && gameRace) {
-        result = await updateGameRace(gameRace.id, payload, token);
+        result = await updateGameRace(gameRace.id, payload);
         if (result.success && result.gameRace) {
           toast({
-            title: t('admin.races.form.toastUpdateSuccessTitle'),
-            description: t(result.messageKey || 'admin.races.form.toastUpdateSuccess', { name: result.gameRace.name }),
+            title: 'Raça Atualizada',
+            description: `A raça "${result.gameRace.name}" foi atualizada com sucesso.`,
           });
           router.push('/admin/races');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.races.form.toastUpdateError', { details: errorDescription }),
+            title: 'Falha na Atualização',
+            description: result.rawMessage || 'Ocorreu um erro ao atualizar a raça.',
             variant: 'destructive',
           });
         }
       } else {
-        result = await createGameRace(payload, token);
+        result = await createGameRace(payload);
         if (result.success && result.gameRace) {
           toast({
-            title: t('admin.races.form.toastCreateSuccessTitle'),
-            description: t(result.messageKey || 'admin.races.form.toastCreateSuccess', { name: result.gameRace.name }),
+            title: 'Raça Criada',
+            description: `A raça "${result.gameRace.name}" foi criada com sucesso.`,
           });
           router.push('/admin/races');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.races.form.toastCreateError', { details: errorDescription }),
+            title: 'Falha na Criação',
+            description: result.rawMessage || 'Ocorreu um erro ao criar a raça.',
             variant: 'destructive',
           });
         }
       }
     } catch (error: any) {
-      console.error('Failed to save game race:', error);
-      const errorDescription = t('general.unexpectedError', { details: error.message || 'Unknown error' });
       toast({
-        title: t('general.error'),
-        description: t('admin.races.form.toastGenericError', { action: isEditMode ? t('general.edit') : t('general.create'), details: errorDescription }),
+        title: 'Erro Inesperado',
+        description: `Ocorreu um erro: ${error.message || 'Tente novamente.'}`,
         variant: 'destructive',
       });
     } finally {
@@ -174,7 +144,7 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditMode ? t('admin.races.form.titleEdit') : t('admin.races.form.titleCreate')}</CardTitle>
+        <CardTitle>{isEditMode ? 'Editar Raça' : 'Adicionar Nova Raça'}</CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -184,15 +154,15 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
               name="game_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.races.form.gameLabel')}</FormLabel>
+                  <FormLabel>Jogo Associado</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingGames}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={isLoadingGames ? t('loading') : t('admin.races.form.gamePlaceholder')} />
+                        <SelectValue placeholder={isLoadingGames ? 'Carregando jogos...' : 'Selecione um jogo'} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {isLoadingGames && <SelectItem value="loading" disabled>{t('loading')}</SelectItem>}
+                      {isLoadingGames && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
                       {!isLoadingGames && games.map((game) => (
                         <SelectItem key={game.id} value={game.id}>
                           {game.name} (v{game.version})
@@ -200,7 +170,7 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>{t('admin.races.form.gameDescription')}</FormDescription>
+                  <FormDescription>A raça pertence a qual sistema de jogo?</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -210,11 +180,11 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.races.form.nameLabel')}</FormLabel>
+                  <FormLabel>Nome da Raça</FormLabel>
                   <FormControl>
-                    <Input placeholder={t('admin.races.form.namePlaceholder')} {...field} />
+                    <Input placeholder="Ex: Elfo" {...field} />
                   </FormControl>
-                  <FormDescription>{t('admin.races.form.nameDescription')}</FormDescription>
+                  <FormDescription>O nome da raça de personagem.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -224,16 +194,16 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.races.form.descriptionLabel')}</FormLabel>
+                  <FormLabel>Descrição</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder={t('admin.races.form.descriptionPlaceholder')}
+                      placeholder="Descreva a raça, suas características e cultura."
                       className="min-h-[100px] resize-y"
                       {...field}
                       value={field.value ?? ''}
                     />
                   </FormControl>
-                  <FormDescription>{t('admin.races.form.descriptionDescription')}</FormDescription>
+                  <FormDescription>Um resumo sobre a raça.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -244,12 +214,12 @@ export function GameRaceForm({ gameRace, isEditMode }: GameRaceFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('general.savingButton')}
+                  Salvando...
                 </>
               ) : isEditMode ? (
-                t('general.saveButton')
+                'Salvar Alterações'
               ) : (
-                t('general.createButton')
+                'Criar Raça'
               )}
             </Button>
           </CardFooter>

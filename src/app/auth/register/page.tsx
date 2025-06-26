@@ -106,19 +106,22 @@ export default function RegisterPage() {
       };
       const result: AuthActionResponse = await registerAction(payload);
 
-      if (result.success && result.user && result.token) {
+      if (result.success && result.user) {
         toast({
           title: 'Cadastro Bem-sucedido',
           description: `Bem-vindo(a), ${result.user.name}! Você agora está logado(a).`,
         });
-        localStorage.setItem('authToken', result.token);
+        
+        // MOCK AUTH: Store user type and data
+        localStorage.setItem('mockUserType', result.user.is_admin ? 'admin' : 'player');
         localStorage.setItem('sessionUserData', JSON.stringify(result.user));
 
         const redirectPath = result.user.is_admin
           ? '/admin/games'
           : '/characters';
         window.location.assign(redirectPath);
-      } else if (result.success && result.rawMessage && !result.token) { // Registration OK, auto-login failed
+
+      } else if (result.success && result.rawMessage) { // Registration OK, auto-login failed
         toast({
           title: 'Cadastro Bem-sucedido',
           description: result.rawMessage,

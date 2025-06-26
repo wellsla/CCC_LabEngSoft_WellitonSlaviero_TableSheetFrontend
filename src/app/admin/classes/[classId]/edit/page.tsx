@@ -2,12 +2,11 @@
 'use client';
 
 import * as React from 'react';
-import { getGameClassDetails, type GameClass, getAuthTokenFromLocalStorage } from '@/services/class'; // Import getAuthTokenFromLocalStorage
+import { getGameClassDetails, type GameClass } from '@/services/class';
 import { GameClassForm } from '../../class-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,7 +15,6 @@ export default function EditGameClassPage() {
   const classId = params.classId as string;
   const router = useRouter();
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
 
   const [gameClass, setGameClass] = React.useState<GameClass | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -25,38 +23,31 @@ export default function EditGameClassPage() {
     async function fetchGameClass() {
       if (!classId) return;
       setIsLoading(true);
-      const token = getAuthTokenFromLocalStorage(); // Get token client-side
-      if (!token) {
-        toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-        setIsLoading(false);
-        router.push('/auth/login');
-        return;
-      }
       try {
-        const fetchedClass = await getGameClassDetails(classId, token); // Pass token
+        const fetchedClass = await getGameClassDetails(classId);
         if (fetchedClass) {
           setGameClass(fetchedClass);
         } else {
-          toast({ title: t('general.error'), description: t('admin.classes.edit.toastNotFound'), variant: 'destructive' });
+          toast({ title: 'Erro', description: 'Classe não encontrada.', variant: 'destructive' });
           router.replace('/admin/classes');
         }
       } catch (error: any) {
-        toast({ title: t('general.error'), description: t('admin.classes.edit.toastErrorLoading', {details: error.message || 'Unknown error'}), variant: 'destructive' });
+        toast({ title: 'Erro', description: `Falha ao carregar a classe: ${error.message || 'Erro desconhecido'}`, variant: 'destructive' });
         router.replace('/admin/classes');
       } finally {
         setIsLoading(false);
       }
     }
     fetchGameClass();
-  }, [classId, router, toast, t]);
+  }, [classId, router, toast]);
 
   React.useEffect(() => {
     if (gameClass?.name) {
-      document.title = t('admin.classes.edit.documentTitle', { name: gameClass.name });
+      document.title = `Editar Classe: ${gameClass.name}`;
     } else if(!isLoading) {
-      document.title = t('admin.classes.edit.documentTitle', { name: t('general.classFallbackName') || 'Class' });
+      document.title = 'Editar Classe';
     }
-  }, [gameClass, isLoading, t, currentLocale]);
+  }, [gameClass, isLoading]);
 
   if (isLoading) {
     return (
@@ -69,7 +60,7 @@ export default function EditGameClassPage() {
   if (!gameClass) {
     return (
         <div className="container mx-auto px-4 py-8 text-center">
-            <p>{t('loading')}...</p> 
+            <p>Carregando...</p> 
         </div>
     );
   }
@@ -79,7 +70,7 @@ export default function EditGameClassPage() {
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/admin/classes">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          {t('admin.classes.edit.backButton')}
+          Voltar para Classes
         </Link>
       </Button>
       <GameClassForm gameClass={gameClass} isEditMode={true} />

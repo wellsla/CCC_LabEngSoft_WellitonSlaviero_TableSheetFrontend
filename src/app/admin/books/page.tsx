@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { getBookList, type GameBook, getAuthTokenFromLocalStorage } from '@/services/book';
+import { getBookList, type GameBook } from '@/services/book';
 import { getGameList } from '@/services/game';
 import {
   Card,
@@ -39,7 +40,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { deleteBookAction } from './actions';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useRouter } from 'next/navigation';
 
 export default function AdminGameBooksPage() {
@@ -47,27 +47,18 @@ export default function AdminGameBooksPage() {
   const [gamesMap, setGamesMap] = React.useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
   const router = useRouter();
 
   React.useEffect(() => {
-    document.title = t('admin.books.page.documentTitle');
-  }, [t, currentLocale]);
+    document.title = 'Gerenciar Livros';
+  }, []);
 
   React.useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
-      const token = getAuthTokenFromLocalStorage();
-      if (!token) {
-        toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-        setIsLoading(false);
-        router.push('/auth/login');
-        return;
-      }
-
       try {
         const [booksList, allGames] = await Promise.all([
-          getBookList(undefined, token),
+          getBookList(),
           getGameList()
         ]);
         
@@ -79,35 +70,26 @@ export default function AdminGameBooksPage() {
 
       } catch (error: any) {
         console.error('Failed to fetch game books or games:', error);
-        toast({ title: t("general.error"), description: t("admin.books.page.toastErrorLoading", {details: error.message || 'Unknown error'}), variant: "destructive" });
+        toast({ title: "Erro", description: `Falha ao carregar dados: ${error.message || 'Erro desconhecido'}`, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
     fetchData();
-  }, [toast, t, router]);
+  }, [toast, router]);
 
   const handleDelete = async (bookId: string, bookName: string) => {
-    const token = getAuthTokenFromLocalStorage();
-    if (!token) {
-      toast({ title: t("general.error"), description: t("general.authenticationFailed"), variant: "destructive" });
-      router.push('/auth/login');
-      return;
-    }
-    const result = await deleteBookAction(bookId, token);
+    const result = await deleteBookAction(bookId);
     if (result.success) {
       toast({
-        title: t('admin.books.page.toastDeleteSuccessTitle'),
-        description: t('admin.books.page.toastDeleteSuccess', { name: bookName }),
+        title: 'Livro Excluído',
+        description: `O livro "${bookName}" foi excluído com sucesso.`,
       });
       setGameBooks(prev => prev.filter(gr => gr.id !== bookId));
     } else {
-      const errorDescription = result.messageKey
-        ? t(result.messageKey, { details: result.rawMessage || '' })
-        : result.rawMessage || t('general.unexpectedError');
       toast({
-        title: t('general.error'),
-        description: t('admin.books.page.toastDeleteError', { name: bookName, details: errorDescription }),
+        title: 'Erro na Exclusão',
+        description: result.rawMessage || 'Ocorreu um erro inesperado.',
         variant: 'destructive',
       });
     }
@@ -124,11 +106,11 @@ export default function AdminGameBooksPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-primary">{t('admin.books.page.title')}</h1>
+        <h1 className="text-3xl font-bold text-primary">Gerenciar Livros</h1>
         <Button asChild>
           <Link href="/admin/books/new">
             <PlusCircle className="mr-2 h-4 w-4" />
-            {t('admin.books.page.createButton')}
+            Adicionar Livro
           </Link>
         </Button>
       </div>
@@ -139,7 +121,7 @@ export default function AdminGameBooksPage() {
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-lg text-muted-foreground">{t('admin.books.page.noBooks')}</p>
+            <p className="text-lg text-muted-foreground">Nenhum livro encontrado.</p>
           </CardContent>
         </Card>
       ) : (
@@ -147,10 +129,10 @@ export default function AdminGameBooksPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('admin.books.table.name')}</TableHead>
-                <TableHead>{t('admin.books.table.game')}</TableHead>
-                <TableHead>{t('admin.books.table.description')}</TableHead>
-                <TableHead className="text-right">{t('general.actions')}</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Jogo Associado</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,15 +155,15 @@ export default function AdminGameBooksPage() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{t('admin.books.page.deleteConfirmTitle')}</AlertDialogTitle>
+                          <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
                           <AlertDialogDescription>
-                            {t('admin.books.page.deleteConfirmDescription', {name: book.name})}
+                            Tem certeza que deseja excluir o livro "{book.name}"?
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{t('general.cancel')}</AlertDialogCancel>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction onClick={() => handleDelete(book.id, book.name)} className="bg-destructive hover:bg-destructive/90">
-                            {t('general.delete')}
+                            Confirmar Exclusão
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

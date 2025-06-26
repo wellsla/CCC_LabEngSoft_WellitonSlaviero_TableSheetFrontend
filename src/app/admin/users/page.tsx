@@ -40,23 +40,15 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { revalidatePath } from 'next/cache'; // Note: revalidatePath in client components has no effect on client-side state.
-import { useTranslation } from '@/hooks/useTranslation';
-
-// Server Action for deleting a user, now moved to its own file or kept here if this page itself becomes more complex server-side
-// For simplicity, if this page remains primarily client-driven for display, calling deleteUserById directly (which uses localStorage for token) is fine.
-// If this page had server-side data fetching needs, then a separate Server Action file would be better.
-// The service function deleteUserById handles the API call and token from localStorage.
 
 export default function AdminUsersPage() {
   const [users, setUsers] = React.useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
 
   React.useEffect(() => {
-    document.title = t('admin.users.page.documentTitle');
-  }, [t, currentLocale]);
+    document.title = 'Gerenciar Usuários';
+  }, []);
 
   React.useEffect(() => {
     const fetchUsers = async () => {
@@ -66,35 +58,36 @@ export default function AdminUsersPage() {
         setUsers(userList);
       } catch (error: any) {
         console.error('Failed to fetch users:', error);
-        const errorDescription = t('admin.users.page.toastErrorLoading', { details: error.message || 'Unknown error' });
-        toast({ title: t("general.error"), description: errorDescription, variant: "destructive" });
+        const errorDescription = `Falha ao carregar usuários: ${error.message || 'Erro desconhecido'}`;
+        toast({ title: "Erro", description: errorDescription, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     };
     fetchUsers();
-  }, [toast, t]);
+  }, [toast]);
 
   const handleDelete = async (userId: string, userName: string) => {
-    // Directly call the service function, which gets token from localStorage
     const result = await deleteUserById(userId); 
     if (result.success) {
       toast({
-        title: t('admin.users.page.toastDeleteSuccessTitle'),
-        description: t('admin.users.page.toastDeleteSuccessDescription', { name: userName }),
+        title: 'Usuário Excluído',
+        description: `O usuário "${userName}" foi excluído.`,
       });
       setUsers(prev => prev.filter(u => u.id !== userId));
-      revalidatePath('/admin/users'); // Revalidate if data is also used server-side elsewhere, though client state is primary here.
     } else {
-      const errorDescription = result.messageKey
-        ? t(result.messageKey, { details: result.rawMessage || '' })
-        : result.rawMessage || t('general.unexpectedError');
+      const errorDescription = result.rawMessage || 'Ocorreu um erro inesperado.';
       toast({
-        title: t('admin.users.page.toastDeleteFailTitle'),
-        description: t('admin.users.page.toastDeleteFailDescription', { name: userName, details: errorDescription }),
+        title: 'Falha na Exclusão',
+        description: `Não foi possível excluir "${userName}". Detalhes: ${errorDescription}`,
         variant: 'destructive',
       });
     }
+  };
+  
+  const formatStatus = (status: string | null | undefined) => {
+    if (!status) return 'N/A';
+    return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
   if (isLoading) {
@@ -109,23 +102,23 @@ export default function AdminUsersPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="flex items-center text-3xl font-bold text-primary">
-          <UserCog className="mr-3 h-8 w-8" /> {t('admin.users.page.title')}
+          <UserCog className="mr-3 h-8 w-8" /> Gerenciar Usuários
         </h1>
       </div>
 
       {users.length === 0 && !isLoading ? (
-        <p className="text-center text-muted-foreground">{t('admin.users.page.noUsers')}</p>
+        <p className="text-center text-muted-foreground">Nenhum usuário encontrado.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('admin.users.table.name')}</TableHead>
-                <TableHead>{t('admin.users.table.email')}</TableHead>
-                <TableHead>{t('admin.users.table.role')}</TableHead>
-                <TableHead>{t('admin.users.table.status')}</TableHead>
-                <TableHead>{t('admin.users.table.suspended')}</TableHead>
-                <TableHead className="text-right">{t('admin.users.table.actions')}</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Função</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Suspenso</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -143,7 +136,7 @@ export default function AdminUsersPage() {
                       ) : (
                         <ShieldAlert className="mr-1 h-3 w-3" />
                       )}
-                      {user.is_admin ? t('admin.users.table.roleAdmin') : t('admin.users.table.roleUser')}
+                      {user.is_admin ? 'Admin' : 'Usuário'}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -163,7 +156,7 @@ export default function AdminUsersPage() {
                       {user.status === 'suspended' && (
                         <UserX className="mr-1 h-3 w-3" />
                       )}
-                      {user.status ? t(`userForm.status${user.status.charAt(0).toUpperCase() + user.status.slice(1)}` as any, {defaultValue: user.status}) : 'N/A'}
+                      {formatStatus(user.status)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -176,7 +169,7 @@ export default function AdminUsersPage() {
                       ) : (
                         <UserCheck className="mr-1 h-3 w-3" />
                       )}
-                      {user.is_suspended ? t('general.yes') : t('general.no')}
+                      {user.is_suspended ? 'Sim' : 'Não'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -185,7 +178,7 @@ export default function AdminUsersPage() {
                       variant="ghost"
                       size="icon"
                       className="hover:text-primary"
-                      aria-label={t('admin.users.table.editUserAriaLabel', {name: user.name})}
+                      aria-label={`Editar usuário ${user.name}`}
                     >
                       <Link href={`/admin/users/${user.id}/edit`}>
                         <Edit className="h-4 w-4" />
@@ -197,7 +190,7 @@ export default function AdminUsersPage() {
                           variant="ghost"
                           size="icon"
                           className="hover:text-destructive"
-                          aria-label={t('admin.users.table.deleteUserAriaLabel', {name: user.name})}
+                          aria-label={`Excluir usuário ${user.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -205,19 +198,19 @@ export default function AdminUsersPage() {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>
-                            {t('admin.users.page.deleteConfirmTitle')}
+                            Confirmar Exclusão
                           </AlertDialogTitle>
                           <AlertDialogDescription>
-                            {t('admin.users.page.deleteConfirmDescription', {name: user.name, email: user.email})}
+                            Tem certeza que deseja excluir o usuário "{user.name}" ({user.email})? Esta ação não pode ser desfeita.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{t('general.cancel')}</AlertDialogCancel>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleDelete(user.id, user.name)}
                             className="bg-destructive hover:bg-destructive/90"
                           >
-                            {t('admin.users.page.deleteConfirmButton')}
+                            Confirmar Exclusão
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -232,4 +225,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-

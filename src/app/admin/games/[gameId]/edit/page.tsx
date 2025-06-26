@@ -2,12 +2,11 @@
 'use client';
 
 import * as React from 'react';
-import { getGameDetails } from '@/services/game'; // getAuthTokenFromLocalStorage not needed here directly if getGameDetails is public
+import { getGameDetails } from '@/services/game';
 import { GameForm } from '../../game-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
@@ -19,7 +18,6 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
   const { gameId } = useParams<{ gameId: string }>();
   const router = useRouter();
   const { toast } = useToast();
-  const { t, currentLocale } = useTranslation();
 
   const [game, setGame] = React.useState<Awaited<ReturnType<typeof getGameDetails>>>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -29,33 +27,31 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
       if (!gameId) return;
       setIsLoading(true);
       try {
-        // getGameDetails can be public, token not directly passed here
-        // Form submission inside GameForm will handle token for update
         const fetchedGame = await getGameDetails(gameId); 
         if (fetchedGame) {
           setGame(fetchedGame);
         } else {
-          toast({ title: t('general.error'), description: t('admin.games.edit.toastNotFound'), variant: 'destructive' });
+          toast({ title: 'Erro', description: 'Jogo não encontrado.', variant: 'destructive' });
           router.replace('/admin/games');
         }
       } catch (error: any) {
-        const errorDescription = t('admin.games.edit.toastErrorLoading', {details: error.message || 'Unknown error'});
-        toast({ title: t('general.error'), description: errorDescription, variant: 'destructive' });
+        const errorDescription = `Falha ao carregar dados do jogo: ${error.message || 'Erro desconhecido'}`;
+        toast({ title: 'Erro', description: errorDescription, variant: 'destructive' });
         router.replace('/admin/games');
       } finally {
         setIsLoading(false);
       }
     }
     fetchGame();
-  }, [gameId, router, toast, t]);
+  }, [gameId, router, toast]);
 
   React.useEffect(() => {
     if (game?.name) {
-      document.title = t('admin.games.edit.documentTitle', { name: game.name });
+      document.title = `Editar Jogo: ${game.name}`;
     } else if(!isLoading) {
-      document.title = t('admin.games.edit.documentTitle', { name: t('general.gameFallbackName') || 'Game' });
+      document.title = 'Editar Jogo';
     }
-  }, [game, isLoading, t, currentLocale]);
+  }, [game, isLoading]);
 
   if (isLoading) {
     return (
@@ -68,7 +64,7 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
   if (!game) {
     return (
         <div className="container mx-auto px-4 py-8 text-center">
-            <p>{t('loading')}...</p>
+            <p>Carregando...</p>
         </div>
     );
   }
@@ -78,7 +74,7 @@ export default function EditGamePage({ params: routeParams }: EditGamePageProps)
       <Button variant="outline" size="sm" asChild className="mb-6">
         <Link href="/admin/games">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          {t('admin.games.edit.backButton')}
+          Voltar para Gerenciar Jogos
         </Link>
       </Button>
       <GameForm game={game} isEditMode={true} />

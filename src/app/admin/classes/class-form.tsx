@@ -35,24 +35,17 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { GameClass } from '@/services/class';
-import { createGameClass, updateGameClass, getAuthTokenFromLocalStorage } from '@/services/class'; // Import getAuthTokenFromLocalStorage
+import { createGameClass, updateGameClass } from '@/services/class';
 import { getGameList, type Game } from '@/services/game';
 import { Loader2 } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
 
-const createGameClassFormSchema = (t: (key: string, params?: Record<string, string | number>) => string) => z.object({
-  name: z
-    .string()
-    .min(2, { message: t('general.minChars', { count: 2 }) })
-    .max(100, { message: t('general.maxChars', { count: 100 }) }),
-  description: z
-    .string()
-    .max(1000, { message: t('general.maxChars', { count: 1000 }) })
-    .optional(),
-  game_id: z.string().min(1, { message: t('admin.classes.form.gameRequired')}),
+const gameClassFormSchema = z.object({
+  name: z.string().min(2, { message: 'Mínimo de 2 caracteres.' }).max(100, { message: 'Máximo de 100 caracteres.' }),
+  description: z.string().max(1000, { message: 'Máximo de 1000 caracteres.' }).optional(),
+  game_id: z.string().min(1, { message: 'É obrigatório associar a um jogo.' }),
 });
 
-type GameClassFormValues = z.infer<ReturnType<typeof createGameClassFormSchema>>;
+type GameClassFormValues = z.infer<typeof gameClassFormSchema>;
 
 interface GameClassFormProps {
   gameClass?: GameClass | null;
@@ -62,12 +55,9 @@ interface GameClassFormProps {
 export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [games, setGames] = React.useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = React.useState(true);
-
-  const gameClassFormSchema = React.useMemo(() => createGameClassFormSchema(t), [t]);
 
   const form = useForm<GameClassFormValues>({
     resolver: zodResolver(gameClassFormSchema),
@@ -83,13 +73,13 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
     async function fetchGames() {
       setIsLoadingGames(true);
       try {
-        const gameList = await getGameList(); // Does not require token for public listing
+        const gameList = await getGameList();
         setGames(gameList);
       } catch (error: any) {
         console.error("Failed to fetch games for dropdown:", error);
         toast({
-          title: t('general.error'),
-          description: t('admin.classes.form.toastErrorLoadingGames', { details: error.message || t('general.unexpectedError', {details: ''}) }),
+          title: 'Erro',
+          description: `Não foi possível carregar os jogos: ${error.message || 'Erro inesperado'}`,
           variant: 'destructive',
         });
       } finally {
@@ -97,22 +87,10 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
       }
     }
     fetchGames();
-  }, [toast, t]);
+  }, [toast]);
 
   async function onSubmit(data: GameClassFormValues) {
     setIsSubmitting(true);
-    const token = getAuthTokenFromLocalStorage(); // Get token client-side
-    if (!token) {
-      toast({
-        title: t('general.error'),
-        description: t('general.authenticationFailed'),
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
-      router.push('/auth/login');
-      return;
-    }
-
     try {
       let result;
       const payload = {
@@ -121,50 +99,42 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
       };
 
       if (isEditMode && gameClass) {
-        result = await updateGameClass(gameClass.id, payload, token); // Pass token
+        result = await updateGameClass(gameClass.id, payload);
         if (result.success && result.gameClass) {
           toast({
-            title: t('admin.classes.form.toastUpdateSuccessTitle'),
-            description: t(result.messageKey || 'admin.classes.form.toastUpdateSuccess', { name: result.gameClass.name }),
+            title: 'Classe Atualizada',
+            description: `A classe "${result.gameClass.name}" foi atualizada com sucesso.`,
           });
           router.push('/admin/classes');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.classes.form.toastUpdateError', { details: errorDescription }),
+            title: 'Falha na Atualização',
+            description: result.rawMessage || 'Ocorreu um erro ao atualizar a classe.',
             variant: 'destructive',
           });
         }
       } else {
-        result = await createGameClass(payload, token); // Pass token
+        result = await createGameClass(payload);
         if (result.success && result.gameClass) {
           toast({
-            title: t('admin.classes.form.toastCreateSuccessTitle'),
-            description: t(result.messageKey || 'admin.classes.form.toastCreateSuccess', { name: result.gameClass.name }),
+            title: 'Classe Criada',
+            description: `A classe "${result.gameClass.name}" foi criada com sucesso.`,
           });
           router.push('/admin/classes');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.classes.form.toastCreateError', { details: errorDescription }),
+            title: 'Falha na Criação',
+            description: result.rawMessage || 'Ocorreu um erro ao criar a classe.',
             variant: 'destructive',
           });
         }
       }
     } catch (error: any) {
-      console.error('Failed to save game class:', error);
-      const errorDescription = t('general.unexpectedError', { details: error.message || 'Unknown error' });
       toast({
-        title: t('general.error'),
-        description: t('admin.classes.form.toastGenericError', { action: isEditMode ? t('general.edit') : t('general.create'), details: errorDescription }),
+        title: 'Erro Inesperado',
+        description: `Ocorreu um erro: ${error.message || 'Tente novamente.'}`,
         variant: 'destructive',
       });
     } finally {
@@ -175,7 +145,7 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditMode ? t('admin.classes.form.titleEdit') : t('admin.classes.form.titleCreate')}</CardTitle>
+        <CardTitle>{isEditMode ? 'Editar Classe' : 'Adicionar Nova Classe'}</CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -185,15 +155,15 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
               name="game_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.classes.form.gameLabel')}</FormLabel>
+                  <FormLabel>Jogo Associado</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingGames}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={isLoadingGames ? t('loading') : t('admin.classes.form.gamePlaceholder')} />
+                        <SelectValue placeholder={isLoadingGames ? 'Carregando jogos...' : 'Selecione um jogo'} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {isLoadingGames && <SelectItem value="loading" disabled>{t('loading')}</SelectItem>}
+                      {isLoadingGames && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
                       {!isLoadingGames && games.map((game) => (
                         <SelectItem key={game.id} value={game.id}>
                           {game.name} (v{game.version})
@@ -201,7 +171,7 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>{t('admin.classes.form.gameDescription')}</FormDescription>
+                  <FormDescription>A classe pertence a qual sistema de jogo?</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -211,11 +181,11 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.classes.form.nameLabel')}</FormLabel>
+                  <FormLabel>Nome da Classe</FormLabel>
                   <FormControl>
-                    <Input placeholder={t('admin.classes.form.namePlaceholder')} {...field} />
+                    <Input placeholder="Ex: Guerreiro" {...field} />
                   </FormControl>
-                  <FormDescription>{t('admin.classes.form.nameDescription')}</FormDescription>
+                  <FormDescription>O nome da classe de personagem.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -225,16 +195,16 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('admin.classes.form.descriptionLabel')}</FormLabel>
+                  <FormLabel>Descrição</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder={t('admin.classes.form.descriptionPlaceholder')}
+                      placeholder="Descreva a classe, suas habilidades e papel no jogo."
                       className="min-h-[100px] resize-y"
                       {...field}
                       value={field.value ?? ''}
                     />
                   </FormControl>
-                  <FormDescription>{t('admin.classes.form.descriptionDescription')}</FormDescription>
+                  <FormDescription>Um resumo sobre a classe.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -245,12 +215,12 @@ export function GameClassForm({ gameClass, isEditMode }: GameClassFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('general.savingButton')}
+                  Salvando...
                 </>
               ) : isEditMode ? (
-                t('general.saveButton')
+                'Salvar Alterações'
               ) : (
-                t('general.createButton')
+                'Criar Classe'
               )}
             </Button>
           </CardFooter>

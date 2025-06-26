@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -5,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -34,26 +37,19 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { GameBook } from '@/services/book';
-import { createBook, updateBook, getAuthTokenFromLocalStorage } from '@/services/book';
+import { createBook, updateBook } from '@/services/book';
 import { getGameList, type Game } from '@/services/game';
-import { Loader2 } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
+import { Loader2, ImageIcon, FileText } from 'lucide-react';
 
-const createGameBookFormSchema = (t: (key: string, params?: Record<string, string | number>) => string) => z.object({
-  name: z
-    .string()
-    .min(2, { message: t('general.minChars', { count: 2 }) })
-    .max(100, { message: t('general.maxChars', { count: 100 }) }),
-  description: z
-    .string()
-    .max(1000, { message: t('general.maxChars', { count: 1000 }) })
-    .optional(),
-  game_id: z.string().min(1, { message: t('admin.books.form.gameRequired')}),
-  cover_image_url: z.string().url({ message: t('general.validUrl') }).optional().or(z.literal('')),
-  document_url: z.string().url({ message: t('general.validUrl') }).min(1, { message: t('general.requiredField') }),
+const gameBookFormSchema = z.object({
+  name: z.string().min(2, { message: 'Mínimo de 2 caracteres.' }).max(100, { message: 'Máximo de 100 caracteres.' }),
+  description: z.string().max(1000, { message: 'Máximo de 1000 caracteres.' }).optional(),
+  game_id: z.string().min(1, { message: 'É obrigatório associar a um jogo.' }),
+  cover_image_url: z.string().optional().or(z.literal('')),
+  document_url: z.string().min(1, { message: 'É obrigatório selecionar um documento.' }),
 });
 
-type GameBookFormValues = z.infer<ReturnType<typeof createGameBookFormSchema>>;
+type GameBookFormValues = z.infer<typeof gameBookFormSchema>;
 
 interface GameBookFormProps {
   gameBook?: GameBook | null;
@@ -63,12 +59,11 @@ interface GameBookFormProps {
 export function GameBookForm({ gameBook, isEditMode }: GameBookFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [games, setGames] = React.useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = React.useState(true);
-
-  const gameBookFormSchema = React.useMemo(() => createGameBookFormSchema(t), [t]);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(gameBook?.cover_image_url || null);
+  const [documentName, setDocumentName] = React.useState<string | null>(null);
 
   const form = useForm<GameBookFormValues>({
     resolver: zodResolver(gameBookFormSchema),
@@ -91,8 +86,8 @@ export function GameBookForm({ gameBook, isEditMode }: GameBookFormProps) {
       } catch (error: any) {
         console.error("Failed to fetch games for dropdown:", error);
         toast({
-          title: t('general.error'),
-          description: t('admin.books.form.toastErrorLoadingGames', { details: error.message || t('general.unexpectedError', {details: ''}) }),
+          title: 'Erro',
+          description: `Não foi possível carregar os jogos: ${error.message || 'Erro desconhecido'}`,
           variant: 'destructive',
         });
       } finally {
@@ -100,22 +95,45 @@ export function GameBookForm({ gameBook, isEditMode }: GameBookFormProps) {
       }
     }
     fetchGames();
-  }, [toast, t]);
+  }, [toast]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setImagePreview(dataUrl);
+        form.setValue('cover_image_url', dataUrl, { shouldValidate: true, shouldDirty: true });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDocumentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast({
+          title: 'Tipo de arquivo inválido',
+          description: 'Por favor, selecione um arquivo PDF.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        form.setValue('document_url', dataUrl, { shouldValidate: true, shouldDirty: true });
+        setDocumentName(file.name);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   async function onSubmit(data: GameBookFormValues) {
     setIsSubmitting(true);
-    const token = getAuthTokenFromLocalStorage();
-    if (!token) {
-      toast({
-        title: t('general.error'),
-        description: t('general.authenticationFailed'),
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
-      router.push('/auth/login');
-      return;
-    }
-
     try {
       let result;
       const payload = {
@@ -125,50 +143,42 @@ export function GameBookForm({ gameBook, isEditMode }: GameBookFormProps) {
       };
 
       if (isEditMode && gameBook) {
-        result = await updateBook(gameBook.id, payload, token);
+        result = await updateBook(gameBook.id, payload);
         if (result.success && result.gameBook) {
           toast({
-            title: t('admin.books.form.toastUpdateSuccessTitle'),
-            description: t(result.messageKey || 'admin.books.form.toastUpdateSuccess', { name: result.gameBook.name }),
+            title: 'Livro Atualizado',
+            description: `O livro "${result.gameBook.name}" foi atualizado.`,
           });
           router.push('/admin/books');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.books.form.toastUpdateError', { details: errorDescription }),
+            title: 'Erro na Atualização',
+            description: result.rawMessage || 'Não foi possível atualizar o livro.',
             variant: 'destructive',
           });
         }
       } else {
-        result = await createBook(payload, token);
+        result = await createBook(payload);
         if (result.success && result.gameBook) {
           toast({
-            title: t('admin.books.form.toastCreateSuccessTitle'),
-            description: t(result.messageKey || 'admin.books.form.toastCreateSuccess', { name: result.gameBook.name }),
+            title: 'Livro Criado',
+            description: `O livro "${result.gameBook.name}" foi criado.`,
           });
           router.push('/admin/books');
           router.refresh();
         } else {
-          const errorDescription = result.messageKey
-            ? t(result.messageKey, { details: result.rawMessage || '' })
-            : result.rawMessage || t('general.unexpectedError');
           toast({
-            title: t('general.error'),
-            description: t('admin.books.form.toastCreateError', { details: errorDescription }),
+            title: 'Erro na Criação',
+            description: result.rawMessage || 'Não foi possível criar o livro.',
             variant: 'destructive',
           });
         }
       }
     } catch (error: any) {
-      console.error('Failed to save game book:', error);
-      const errorDescription = t('general.unexpectedError', { details: error.message || 'Unknown error' });
       toast({
-        title: t('general.error'),
-        description: t('admin.books.form.toastGenericError', { action: isEditMode ? t('general.edit') : t('general.create'), details: errorDescription }),
+        title: 'Erro Inesperado',
+        description: error.message || 'Ocorreu um erro ao salvar o livro.',
         variant: 'destructive',
       });
     } finally {
@@ -179,117 +189,158 @@ export function GameBookForm({ gameBook, isEditMode }: GameBookFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditMode ? t('admin.books.form.titleEdit') : t('admin.books.form.titleCreate')}</CardTitle>
+        <CardTitle>{isEditMode ? 'Editar Livro' : 'Adicionar Novo Livro'}</CardTitle>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            <FormField
-              control={form.control}
-              name="game_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('admin.books.form.gameLabel')}</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingGames}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={isLoadingGames ? t('loading') : t('admin.books.form.gamePlaceholder')} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {isLoadingGames && <SelectItem value="loading" disabled>{t('loading')}</SelectItem>}
-                      {!isLoadingGames && games.map((game) => (
-                        <SelectItem key={game.id} value={game.id}>
-                          {game.name} (v{game.version})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>{t('admin.books.form.gameDescription')}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('admin.books.form.nameLabel')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('admin.books.form.namePlaceholder')} {...field} />
-                  </FormControl>
-                  <FormDescription>{t('admin.books.form.nameDescription')}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('admin.books.form.descriptionLabel')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={t('admin.books.form.descriptionPlaceholder')}
-                      className="min-h-[100px] resize-y"
-                      {...field}
-                      value={field.value ?? ''}
+            <div className="flex flex-col-reverse gap-8 md:flex-row">
+                <div className="flex-grow space-y-6">
+                     <FormField
+                      control={form.control}
+                      name="game_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Jogo Associado</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingGames}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={isLoadingGames ? 'Carregando jogos...' : 'Selecione um jogo'} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {isLoadingGames && <SelectItem value="loading" disabled>Carregando...</SelectItem>}
+                              {!isLoadingGames && games.map((game) => (
+                                <SelectItem key={game.id} value={game.id}>
+                                  {game.name} (v{game.version})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>O livro pertence a qual sistema de jogo?</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  </FormControl>
-                  <FormDescription>{t('admin.books.form.descriptionDescription')}</FormDescription>
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome do Livro</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Livro do Jogador" {...field} />
+                          </FormControl>
+                          <FormDescription>O nome oficial do livro ou documento.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descrição</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Descreva o conteúdo do livro..."
+                              className="min-h-[100px] resize-y"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormDescription>Um resumo breve sobre o livro.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                <div className="w-full md:w-56 flex-shrink-0 space-y-2">
+                    <FormLabel>Capa do Livro (Opcional)</FormLabel>
+                    <div className="relative flex aspect-[3/4] w-full items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/30">
+                        {imagePreview ? (
+                            <Image src={imagePreview} alt="Prévia da capa" layout="fill" className="object-contain rounded-md p-1" />
+                        ) : (
+                            <div className="text-center text-muted-foreground p-4">
+                                <ImageIcon className="mx-auto h-12 w-12"/>
+                                <p className="text-xs mt-2">Sem imagem</p>
+                            </div>
+                        )}
+                         <Input id="cover-image-upload" type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
+                    </div>
+                     <FormDescription>Clique na área para enviar uma imagem.</FormDescription>
+                </div>
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="document_url"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Documento (PDF)</FormLabel>
+                    <div className="flex items-center gap-2">
+                        <div className="relative w-full">
+                            <label
+                                htmlFor="document-upload"
+                                className="flex h-10 w-full cursor-pointer items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                            >
+                                <FileText className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="truncate text-muted-foreground">
+                                    {documentName || 'Selecione um arquivo PDF...'}
+                                </span>
+                            </label>
+                            <FormControl>
+                                <Input
+                                    id="document-upload"
+                                    type="file"
+                                    className="sr-only"
+                                    accept=".pdf"
+                                    onChange={handleDocumentChange}
+                                />
+                            </FormControl>
+                        </div>
+                        {isEditMode && form.getValues('document_url') && !documentName && (
+                            <Button asChild variant="outline" size="icon" type="button">
+                                <Link
+                                href={form.getValues('document_url')}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Visualizar documento atual"
+                                >
+                                <FileText className="h-5 w-5" />
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
+                  <FormDescription>Selecione o arquivo PDF do livro de regras do seu computador.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
              <FormField
-              control={form.control}
-              name="document_url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('admin.books.form.documentUrlLabel')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('admin.books.form.documentUrlPlaceholder')} {...field} />
-                  </FormControl>
-                  <FormDescription>{t('admin.books.form.documentUrlDescription')}</FormDescription>
-                   <FormDescription>{t('gameForm.fileUploadHint')}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="cover_image_url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('admin.books.form.coverImageUrlLabel')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="url"
-                      placeholder={t('admin.books.form.coverImageUrlPlaceholder')}
-                      {...field}
-                      value={field.value ?? ''}
-                    />
-                  </FormControl>
-                  <FormDescription>{t('admin.books.form.coverImageUrlDescription')}</FormDescription>
-                   <FormDescription>{t('gameForm.fileUploadHint')}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                control={form.control}
+                name="cover_image_url"
+                render={({ field }) => (
+                    <FormItem className="hidden">
+                        <FormControl>
+                            <Input {...field} />
+                        </FormControl>
+                    </FormItem>
+                )}
+             />
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-6">
             <Button type="submit" disabled={isSubmitting || isLoadingGames}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('general.savingButton')}
+                  Salvando...
                 </>
               ) : isEditMode ? (
-                t('general.saveButton')
+                'Salvar Alterações'
               ) : (
-                t('general.createButton')
+                'Criar Livro'
               )}
             </Button>
           </CardFooter>

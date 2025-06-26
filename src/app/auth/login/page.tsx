@@ -62,12 +62,15 @@ export default function LoginPage() {
     try {
       const result: AuthActionResponse = await loginAction(data);
 
-      if (result.success && result.user && result.token) {
+      if (result.success && result.user) {
         toast({
           title: 'Login Bem-sucedido',
           description: `Bem-vindo(a) de volta, ${result.user.name}!`,
         });
-        localStorage.setItem('authToken', result.token);
+        
+        // MOCK AUTH: Store user type instead of token
+        localStorage.setItem('mockUserType', result.user.is_admin ? 'admin' : 'player');
+        // Store user data for easy access by client-side components
         localStorage.setItem('sessionUserData', JSON.stringify(result.user));
 
         const redirectPath = result.user.is_admin
@@ -123,7 +126,7 @@ export default function LoginPage() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="voce@exemplo.com"
+                        placeholder="admin@tablesheet.com ou jogador@tablesheet.com"
                         {...field}
                       />
                     </FormControl>
@@ -140,7 +143,7 @@ export default function LoginPage() {
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="••••••••"
+                        placeholder="password123"
                         {...field}
                       />
                     </FormControl>

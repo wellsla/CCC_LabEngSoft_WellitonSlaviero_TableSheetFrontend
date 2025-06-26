@@ -135,9 +135,6 @@ export default async function GameDetailsPage({ params }: GameDetailsPageProps) 
               </div>
             </>
           )}
-          <p className="mt-8 text-xs text-muted-foreground">
-            Game ID: {game.id}
-          </p>
         </CardContent>
       </Card>
     </div>

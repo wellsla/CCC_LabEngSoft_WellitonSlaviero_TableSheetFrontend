@@ -1,7 +1,6 @@
 
 'use server';
 
-import { cookies } from 'next/headers'; // Standardized import
 import { redirect } from 'next/navigation';
 import * as z from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -33,41 +32,32 @@ export interface AuthActionResponse {
   messageKey?: string;
   rawMessage?: string;
   user?: UserProfile;
-  token?: string;
-  errors?: Record<string, string[]>;
+  // Token is no longer sent to the client in the mock setup
 }
 
 export async function loginAction(data: {
   email: string;
   password: string;
 }): Promise<AuthActionResponse> {
-  console.log('[LoginAction] Attempting API login for email:', data.email);
+  console.log('[LoginAction Mock] Attempting mock login for:', data.email);
   try {
+    // This now calls the mockApiClient's loginApi
     const responseData = await loginApi(data);
-    const { user: userFromApi, token } = responseData;
+    const { user: userFromApi } = responseData;
 
-    if (!userFromApi || !token) {
-      console.error(
-        '[LoginAction] Invalid response structure from API login. User or token missing.'
-      );
+    if (!userFromApi) {
       return {
         success: false,
         messageKey: 'general.unexpectedError',
-        rawMessage: 'Login failed: Invalid response from server.',
+        rawMessage: 'Login falhou: resposta inválida do servidor mock.',
       };
     }
-    console.log(
-      '[LoginAction] API login successful. Returning user and token to client.'
-    );
-
-    revalidatePath('/', 'layout');
-    revalidatePath('/characters', 'page');
-    revalidatePath('/profile', 'page');
-    revalidatePath('/admin', 'layout');
-
-    return { success: true, user: userFromApi, token };
+    
+    // The "token" from the mock API just tells us the user type.
+    // We pass the full user object to the client to store.
+    return { success: true, user: userFromApi };
   } catch (error: any) {
-    console.error('[LoginAction] Raw error during API login:', error);
+    console.error('[LoginAction Mock] Raw error during mock login:', error);
     const processedError: ProcessedError = handleAxiosError(error);
     return {
       success: false,
@@ -79,100 +69,34 @@ export async function loginAction(data: {
 }
 
 export async function logoutAction(): Promise<void> {
-  const cookieStore = cookies();
-  const authToken = cookieStore.get('authToken')?.value;
-  let redirectPath = '/auth/login';
-
-  if (authToken) {
-    try {
-      console.log('[LogoutAction] Attempting API logout...');
-      await logoutApi(authToken);
-      console.log('[LogoutAction] API Logout request sent successfully.');
-    } catch (error: unknown) {
-      console.error(
-        '[LogoutAction] Error during API logout request (proceeding with cookie deletion):',
-        error
-      );
-    }
-  } else {
-    console.log(
-      '[LogoutAction] No authToken (cookie) found for API logout call.'
-    );
-  }
-
-  if (cookieStore.get('authToken')) cookieStore.delete('authToken');
-  if (cookieStore.get('sessionUserData'))
-    cookieStore.delete('sessionUserData');
-  console.log('[LogoutAction] Old session cookies (if any) deleted.');
-
+  // With mock, we don't need to call an API. The client will clear localStorage.
+  // This server action's main job is now just to handle the redirect.
+  console.log('[LogoutAction Mock] Logging out and redirecting.');
   revalidatePath('/', 'layout');
-  revalidatePath('/admin', 'layout');
-  revalidatePath('/characters', 'page');
-  revalidatePath('/profile', 'page');
-  revalidatePath('/games', 'page');
-  console.log('[LogoutAction] Paths revalidated.');
-
-  redirect(redirectPath);
+  redirect('/auth/login');
 }
 
 export async function registerAction(
   data: RegisterFormValuesForAction
 ): Promise<AuthActionResponse> {
-  console.log('[RegisterAction] Attempting API registration for:', data.email);
+  console.log('[RegisterAction Mock] Attempting mock registration for:', data.email);
   try {
-    const payloadForApi = {
-      ...data,
-      password_confirmation: data.password,
-      birth_date: data.birth_date || undefined,
-    };
-    await registerApi(payloadForApi);
-    console.log(
-      '[RegisterAction] Registration successful via API for:',
-      data.email
-    );
+    await registerApi({ ...data, password_confirmation: data.password });
+    
+    // Auto-login after registration
+    const loginResponse = await loginApi({ email: data.email, password: data.password });
 
-    console.log(
-      '[RegisterAction] Attempting auto-login for:',
-      data.email,
-      'after registration.'
-    );
-    try {
-      const loginData = { email: data.email, password: data.password };
-      const loginResponse = await loginApi(loginData);
-      const { user: userFromLogin, token: tokenFromLogin } = loginResponse;
-
-      if (!userFromLogin || !tokenFromLogin) {
-        console.error(
-          '[RegisterAction] Invalid response structure from auto-login API call.'
-        );
-        return {
-          success: true,
-          messageKey: 'auth.register.failToastDescription', // Use a key indicating registration ok, login fail
-          rawMessage: 'Registration successful, but auto-login failed. Please log in manually.',
-        };
-      }
-      console.log(
-        '[RegisterAction] Auto-login API call successful. Returning user and token.'
-      );
-      revalidatePath('/', 'layout');
-      revalidatePath('/characters', 'page');
-      revalidatePath('/profile', 'page');
-
-      return { success: true, user: userFromLogin, token: tokenFromLogin };
-    } catch (loginError: any) {
-      console.error(
-        '[RegisterAction] Error during auto-login attempt:',
-        loginError
-      );
-      const processedLoginError = handleAxiosError(loginError);
-      return {
-        success: true, // Registration was successful
-        messageKey: 'auth.register.failToastDescription',
-        rawMessage: `Registration successful. Auto-login failed: ${processedLoginError.rawMessage || 'Please try logging in manually.'}`,
-      };
+    if (loginResponse.user) {
+        return { success: true, user: loginResponse.user };
     }
+    
+    return {
+      success: true, // Registration was ok
+      messageKey: 'auth.register.failToastDescription',
+      rawMessage: 'Cadastro bem-sucedido, mas o login automático falhou. Por favor, entre manualmente.',
+    };
+
   } catch (error: any) {
-    console.error('[RegisterAction] Raw error during API registration:', error);
     const processedError: ProcessedError = handleAxiosError(error);
     return {
       success: false,
@@ -186,21 +110,13 @@ export async function registerAction(
 export async function requestPasswordResetAction(
   email: string
 ): Promise<{ success: boolean; messageKey?: string, rawMessage?: string }> {
-  console.log(
-    '[RequestPasswordResetAction] Requesting password reset for:',
-    email
-  );
   try {
     await requestPasswordResetApi(email);
     return {
       success: true,
-      messageKey: 'auth.forgotPassword.successToastDescription', // This is a specific success message
+      messageKey: 'auth.forgotPassword.successToastDescription',
     };
   } catch (error: unknown) {
-    console.error(
-      '[RequestPasswordResetAction] Raw error during password reset request:',
-      error
-    );
     const processedError = handleAxiosError(error);
     return {
       success: false,

@@ -3,12 +3,11 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
   Menu,
-  ShieldHalf,
   Gamepad2,
   Users,
   LogOut,
@@ -40,8 +39,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const Header = () => {
-  const router = useRouter();
-
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -49,19 +46,9 @@ const Header = () => {
   useEffect(() => {
     const fetchUser = async () => {
       setIsLoadingUser(true);
-      const localUser = getUserProfile();
-      if (localUser) {
-        setCurrentUser(localUser);
-        verifyAndFetchUserProfile().then((apiUser) => {
-          if (apiUser) {
-            setCurrentUser(apiUser);
-          } else {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('sessionUserData');
-            setCurrentUser(null);
-          }
-        });
-      }
+      // This now uses the mock-aware getUserProfile
+      const user = await verifyAndFetchUserProfile();
+      setCurrentUser(user);
       setIsLoadingUser(false);
     };
     fetchUser();
@@ -71,10 +58,11 @@ const Header = () => {
   const isAdmin = currentUser?.is_admin === true;
 
   const handleLogout = async () => {
-    localStorage.removeItem('authToken');
+    // MOCK AUTH: Clear mock session from localStorage
+    localStorage.removeItem('mockUserType');
     localStorage.removeItem('sessionUserData');
     setCurrentUser(null);
-    await logoutAction();
+    await logoutAction(); // Redirects
     setIsMobileMenuOpen(false);
   };
 
@@ -146,7 +134,14 @@ const Header = () => {
           className="mr-6 flex items-center gap-2"
           onClick={handleLinkClick}
         >
-          <ShieldHalf className="h-7 w-7 text-primary" />
+          <Image
+            src="https://placehold.co/64x64.png"
+            width={28}
+            height={28}
+            alt="TableSheet Logo"
+            className="h-7 w-7 object-contain"
+            data-ai-hint="logo placeholder"
+          />
           <span className="text-xl font-semibold tracking-tight text-primary">
             TableSheet
           </span>
@@ -259,7 +254,14 @@ const Header = () => {
                   className="flex items-center gap-2"
                   onClick={handleLinkClick}
                 >
-                  <ShieldHalf className="h-6 w-6 text-primary" />
+                  <Image
+                    src="https://placehold.co/64x64.png"
+                    width={24}
+                    height={24}
+                    alt="TableSheet Logo"
+                    className="h-6 w-6 object-contain"
+                    data-ai-hint="logo placeholder"
+                  />
                   <span className="text-lg font-semibold text-primary">
                     TableSheet
                   </span>
@@ -377,3 +379,5 @@ const Header = () => {
 };
 
 export default Header;
+
+    
