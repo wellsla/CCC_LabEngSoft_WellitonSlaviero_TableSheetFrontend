@@ -458,7 +458,7 @@ class ApiClient {
   // --- Uploads ---
   async uploadAvatar(file: File): Promise<UploadResponse> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('avatar', file);
     const response = await this.api.post('/upload/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -470,7 +470,7 @@ class ApiClient {
     characterId: string
   ): Promise<UploadResponse> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('portrait', file);
     formData.append('character_sheet_id', characterId);
     const response = await this.api.post('/upload/portrait', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -480,7 +480,7 @@ class ApiClient {
 
   async uploadCoverImage(file: File, gameId: string): Promise<UploadResponse> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('cover_image', file);
     formData.append('game_id', gameId);
     const response = await this.api.post('/upload/cover-image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

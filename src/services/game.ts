@@ -2,6 +2,7 @@
 import { apiClient } from '@/lib/clientApi';
 import { ApiClient, type Game } from '@/lib/apiClient';
 import { handleAxiosError, type ProcessedError } from '@/lib/apiErrorHandler';
+import { ensureValidCoverImageUrl } from '@/lib/imageUtils';
 
 export type { Game };
 
@@ -15,7 +16,12 @@ interface GameServiceResponse {
 export async function getGameList(): Promise<Game[]> {
   try {
     const response = await apiClient.getGameList();
-    return response.data.filter((game) => !game.deleted_at);
+    return response.data
+      .filter((game) => !game.deleted_at)
+      .map(game => ({
+        ...game,
+        cover_image_url: ensureValidCoverImageUrl(game.cover_image_url)
+      }));
   } catch (error) {
     const processedError = handleAxiosError(error);
     throw new Error(
@@ -39,7 +45,10 @@ export async function getGameDetails(gameId: string): Promise<Game | null> {
       game.races = game.races.filter((race) => !race.deleted_at);
     }
 
-    return game;
+    return {
+      ...game,
+      cover_image_url: ensureValidCoverImageUrl(game.cover_image_url)
+    };
   } catch (error: any) {
     if (error.response && error.response.status === 404) {
       return null;

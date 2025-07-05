@@ -2,6 +2,7 @@
 import { apiClient } from '@/lib/clientApi';
 import { ApiClient, type ApiGameBook, type GameBook } from '@/lib/apiClient';
 import { handleAxiosError, type ProcessedError } from '@/lib/apiErrorHandler';
+import { ensureValidDocumentUrl } from '@/lib/imageUtils';
 
 export type { GameBook };
 
@@ -13,7 +14,10 @@ interface GameBookServiceResponse {
 }
 
 function transformApiBook(apiBook: ApiGameBook): GameBook {
-  return apiBook;
+  return {
+    ...apiBook,
+    document_url: ensureValidDocumentUrl(apiBook.document_url)
+  };
 }
 
 export async function getBookList(gameId?: string): Promise<GameBook[]> {
@@ -48,6 +52,17 @@ export async function createBook(
     Omit<GameBook, 'id' | 'created_at' | 'updated_at' | 'created_by' | 'game'>
   >
 ): Promise<GameBookServiceResponse> {
+  // Validate document_url is not empty
+  if (!bookData.document_url || bookData.document_url.trim() === '') {
+    return {
+      success: false,
+      rawMessage: 'A URL do documento é obrigatória.',
+      errors: {
+        document_url: ['A URL do documento é obrigatória.']
+      }
+    };
+  }
+
   const apiPayload: any = { ...bookData };
   if (bookData.game_id) {
     apiPayload.game_id = parseInt(bookData.game_id, 10);
@@ -76,6 +91,17 @@ export async function updateBook(
     Omit<GameBook, 'id' | 'created_by' | 'created_at' | 'updated_at' | 'game'>
   >
 ): Promise<GameBookServiceResponse> {
+  // Validate document_url is not empty if it's being updated
+  if (bookData.document_url !== undefined && (bookData.document_url === null || bookData.document_url.trim() === '')) {
+    return {
+      success: false,
+      rawMessage: 'A URL do documento é obrigatória.',
+      errors: {
+        document_url: ['A URL do documento é obrigatória.']
+      }
+    };
+  }
+
   const apiPayload: any = { ...bookData };
   if (bookData.game_id) {
     apiPayload.game_id = parseInt(bookData.game_id, 10);

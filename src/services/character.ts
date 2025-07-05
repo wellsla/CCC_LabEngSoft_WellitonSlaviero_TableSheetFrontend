@@ -2,6 +2,7 @@
 import { apiClient } from '@/lib/clientApi';
 import { ApiClient, type Character } from '@/lib/apiClient';
 import { handleAxiosError, type ProcessedError } from '@/lib/apiErrorHandler';
+import { ensureValidPortraitUrl } from '@/lib/imageUtils';
 
 export type { Character };
 
@@ -15,7 +16,12 @@ interface CharacterServiceResponse {
 export async function getCharacterList(): Promise<Character[]> {
   try {
     const response = await apiClient.getCharacterList();
-    return response.data.filter((char) => !char.deleted_at);
+    return response.data
+      .filter((char) => !char.deleted_at)
+      .map(char => ({
+        ...char,
+        portrait_url: ensureValidPortraitUrl(char.portrait_url)
+      }));
   } catch (error) {
     const processedError = handleAxiosError(error);
     throw new Error(processedError.rawMessage || 'Falha ao buscar personagens.');
@@ -27,7 +33,11 @@ export async function getCharacterDetails(
 ): Promise<Character | null> {
   try {
     const response = await apiClient.getCharacter(characterId);
-    return response.data;
+    const character = response.data;
+    return {
+      ...character,
+      portrait_url: ensureValidPortraitUrl(character.portrait_url)
+    };
   } catch (error: any) {
     if (error.response && error.response.status === 404) {
       return null;

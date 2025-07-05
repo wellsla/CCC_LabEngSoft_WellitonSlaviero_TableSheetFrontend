@@ -10,6 +10,7 @@ import type {
 } from '@/lib/apiClient';
 import { getAuthToken, removeAuthToken } from '@/lib/tokenManager';
 import { ApiClient } from '@/lib/apiClient';
+import { ensureValidAvatarUrl } from '@/lib/imageUtils';
 
 export type { UserProfile, UpdateProfileData, UpdatePasswordData };
 
@@ -33,7 +34,10 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
 
   try {
     const { data } = await apiClient.getProfile();
-    return data;
+    return {
+      ...data,
+      avatar_url: ensureValidAvatarUrl(data.avatar_url)
+    };
   } catch (error) {
     removeAuthToken(); // Clean up invalid token
     return null;
@@ -68,7 +72,14 @@ export async function updateUserProfile(
     }
 
     const result = await apiClient.updateProfile(payload);
-    return { success: true, user: result.data, rawMessage: result.message };
+    return {
+      success: true,
+      user: {
+        ...result.data,
+        avatar_url: ensureValidAvatarUrl(result.data.avatar_url)
+      },
+      rawMessage: result.message
+    };
   } catch (error) {
     return handleAxiosError(error);
   }
@@ -90,7 +101,12 @@ export async function updateUserPassword(
 export async function adminGetAllUsers(): Promise<UserProfile[]> {
   try {
     const response = await apiClient.adminGetAllUsers();
-    return response.data.filter((user) => !user.deleted_at);
+    return response.data
+      .filter((user) => !user.deleted_at)
+      .map(user => ({
+        ...user,
+        avatar_url: ensureValidAvatarUrl(user.avatar_url)
+      }));
   } catch (error) {
     const processedError = handleAxiosError(error);
     throw new Error(processedError.rawMessage || 'Falha ao buscar usuários.');
@@ -102,7 +118,11 @@ export async function adminGetUser(
 ): Promise<UserProfile | null> {
   try {
     const response = await apiClient.adminGetUser(userId);
-    return response.data;
+    const user = response.data;
+    return {
+      ...user,
+      avatar_url: ensureValidAvatarUrl(user.avatar_url)
+    };
   } catch (error: any) {
     if (error.response && error.response.status === 404) {
       return null;
@@ -120,7 +140,10 @@ export async function adminUpdateUser(
 ): Promise<UserProfile> {
   try {
     const { data: updatedUser } = await apiClient.adminUpdateUser(userId, data);
-    return updatedUser;
+    return {
+      ...updatedUser,
+      avatar_url: ensureValidAvatarUrl(updatedUser.avatar_url)
+    };
   } catch (error) {
     const apiError = handleAxiosError(error);
     throw new Error(apiError.rawMessage);
